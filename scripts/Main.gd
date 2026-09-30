@@ -87,6 +87,7 @@ func _clear() -> void:
 # ================= TITLE =================
 var tab := "deploy"
 var rail_box: VBoxContainer
+var tab_scroll: ScrollContainer
 var tab_content: VBoxContainer
 
 func show_title() -> void:
@@ -97,6 +98,7 @@ func show_title() -> void:
 	add_child(screen)
 	var bg := ColorRect.new()
 	bg.color = BG
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.add_child(bg)
 	_data_rain(bg)
@@ -131,6 +133,7 @@ func show_title() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body.add_child(scroll)
+	tab_scroll = scroll
 	tab_content = VBoxContainer.new()
 	tab_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tab_content.add_theme_constant_override("separation", 12)
@@ -154,11 +157,7 @@ func _render_rail() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if tab == String(t[0]):
 			WCTheme.style_button(b, t[2])
-		var id := String(t[0])
-		b.pressed.connect(func():
-			tab = id
-			AudioDirector.play("ui")
-			_refresh_title())
+		b.pressed.connect(_on_nav.bind(String(t[0])))
 		rail_box.add_child(b)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -172,9 +171,22 @@ func _render_rail() -> void:
 	cv.add_child(WCTheme.header("%d cr" % int(SaveSystem.profile.get("credits", 0)), NEON_YELLOW, 24))
 	rail_box.add_child(WCTheme.body("v%s · Godot 4.7" % GameDB.VERSION, 11, WCTheme.DIM))
 
+func _on_nav(id: String) -> void:
+	tab = id
+	AudioDirector.play("ui")
+	_refresh_title()
+
+func _on_contract(idx: int) -> void:
+	sel_contract = idx
+	AudioDirector.play("ui")
+	_refresh_title()
+
 func _render_tab() -> void:
 	for c in tab_content.get_children():
 		c.queue_free()
+	if tab_scroll != null:
+		tab_scroll.scroll_vertical = 0
+		tab_scroll.scroll_horizontal = 0
 	match tab:
 		"deploy":
 			_tab_deploy()
@@ -309,10 +321,7 @@ func _contract_row(i: int, c: Dictionary, open: bool) -> Control:
 		var b := Button.new()
 		b.text = "✓" if sel_contract == i else "GO"
 		h.add_child(b)
-		b.pressed.connect(func():
-			sel_contract = i
-			AudioDirector.play("ui")
-			_refresh_title())
+		b.pressed.connect(_on_contract.bind(i))
 	return p
 
 func _program_picker(slot: int) -> Control:

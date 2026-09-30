@@ -2,7 +2,13 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.5.1 — title layout hotfix (this commit)
+## v0.5.2 — nav click fix (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 8.8 | Nav/contract buttons use bound methods; tab switch resets scroll offset (tabs no longer open mid-content); title bg ignores mouse. Click-routing proven by 11 probe asserts. |
+| **Mean** | **8.72** | Unchanged. |
+
+## v0.5.1 — title layout hotfix
 | Axis | Score | Notes |
 |---|---|---|
 | Usability | 8.8 | Fixed 969px header collapse (subtitle autowrap without width); active tab no longer greyed. Layout probe added. |

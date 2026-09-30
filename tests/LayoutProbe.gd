@@ -19,6 +19,7 @@ func _ready() -> void:
 			await get_tree().process_frame
 		_dump_tab(main_scene, t, vp)
 	await _test_clicks(main_scene)
+	await _test_hit(main_scene)
 	print("---- PROBE DONE: %d passed, %d failed ----" % [passes, failures])
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -83,6 +84,53 @@ func _test_clicks(main_scene: Node) -> void:
 	SaveSystem.profile["contracts_unlocked"] = prev_unlock
 	main_scene._refresh_title()
 	await get_tree().process_frame
+
+func _rail_buttons(main_scene: Node) -> Array:
+	var btns: Array = []
+	for ch in main_scene.rail_box.get_children():
+		if ch is Button:
+			btns.append(ch)
+	return btns
+
+func _test_hit(main_scene: Node) -> void:
+	## Overlap scan: any visible mouse-STOP control (not an ancestor or
+	## descendant) intersecting a rail button would steal or shift clicks.
+	## Headless dummy never delivers parsed input to gui, so delivery
+	## itself cannot be tested here — routing is covered by _test_clicks.
+	main_scene.tab = "deploy"
+	main_scene._refresh_title()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var stops: Array = []
+	_collect_stops(main_scene.screen, stops)
+	var btns := _rail_buttons(main_scene)
+	_nav_check(btns.size() == 4, "hit_btn_count", "(%d)" % btns.size())
+	for k in 4:
+		var b: Control = btns[k]
+		var bad: Array = []
+		for s in stops:
+			var sc: Control = s
+			if sc == b or _is_ancestor(sc, b) or _is_ancestor(b, sc):
+				continue
+			if sc.get_global_rect().intersects(b.get_global_rect()):
+				bad.append("%s%s" % [sc.get_class(), str(sc.get_global_rect())])
+		_nav_check(bad.is_empty(), "no_overlap_btn_%d" % k, str(bad))
+
+func _collect_stops(n: Node, out: Array) -> void:
+	if n is Control:
+		var c := n as Control
+		if c.visible and c.mouse_filter == Control.MOUSE_FILTER_STOP:
+			out.append(c)
+	for ch in n.get_children():
+		_collect_stops(ch, out)
+
+func _is_ancestor(a: Node, b: Node) -> bool:
+	var p := b.get_parent()
+	while p != null:
+		if p == a:
+			return true
+		p = p.get_parent()
+	return false
 
 func _dump_tab(main_scene: Node, tab: String, vp: Vector2) -> void:
 	print("== TAB %s ==" % tab)

@@ -8,6 +8,12 @@ extends Node
 func _ready() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	print("PROBE viewport=%s" % str(vp))
+	print("PROBE window=%s screen=%s" % [str(DisplayServer.window_get_size()),
+		str(DisplayServer.screen_get_size())])
+	print("PROBE canvas_transform=%s" % str(get_viewport().get_canvas_transform()))
+	print("PROBE stretch_mode=%s aspect=%s" % [
+		str(ProjectSettings.get_setting("display/window/stretch/mode")),
+		str(ProjectSettings.get_setting("display/window/stretch/aspect"))])
 	var main_scene: Node = load("res://scenes/Main.tscn").instantiate()
 	add_child(main_scene)
 	for _i in 3:

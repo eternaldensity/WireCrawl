@@ -64,9 +64,13 @@ static func _btn_box(border: Color) -> StyleBoxFlat:
 	s.content_margin_bottom = 7
 	return s
 
-static func style_button(b: Button, accent: Color) -> void:
-	## Per-button accent (primary actions, selections).
-	b.add_theme_stylebox_override("normal", _btn_box(accent.darkened(0.35)))
+static func style_button(b: Button, accent: Color, filled := false) -> void:
+	## Per-button accent (primary actions, selections). Filled variant reads
+	## as "active location" and can't be confused with hover (border-only).
+	var n := _btn_box(accent.darkened(0.35))
+	if filled:
+		n.bg_color = Color(accent.r * 0.3, accent.g * 0.3, accent.b * 0.3, 0.96)
+	b.add_theme_stylebox_override("normal", n)
 	b.add_theme_stylebox_override("hover", _btn_box(accent))
 	b.add_theme_stylebox_override("pressed", _btn_box(PINK))
 	b.add_theme_color_override("font_hover_color", Color.WHITE)

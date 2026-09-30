@@ -32,33 +32,37 @@ static func _paint(accent: Color, w: int, h: int, cut: int, glow_px: int, filled
 			var col := Color(0.028, 0.032, 0.075, 0.96)
 			if filled:
 				col = col.lerp(Color(accent.r * 0.35, accent.g * 0.35, accent.b * 0.35, 0.96), 0.55)
-			# chrome sheen from the top edge
-			var sheen: float = clampf(1.0 - float(y) / (fy * 0.22), 0.0, 1.0) * 0.10
+			# chrome sheen from the top edge (vertical only: stretch-safe)
+			var sheen: float = clampf(1.0 - float(y) / (fy * 0.15), 0.0, 1.0) * 0.07
 			col.r += sheen
 			col.g += sheen
 			col.b += sheen
-			# circuit traces: two horizontal + one vertical bus + pads
+			# corner-zone circuits only (stretched middles stay clean dark)
 			var tr := 0.0
-			var ly1 := fy * 0.30
-			var ly2 := fy * 0.72
-			var lx1 := float(w) * 0.62
-			if absf(float(y) - ly1) < 1.0 or absf(float(y) - ly2) < 1.0 or absf(float(x) - lx1) < 1.0:
-				tr = 0.5
+			for zone_x in [10.0, float(w) - 10.0]:
+				var dx: float = absf(float(x) - zone_x)
+				if dx < 22.0:
+					for ly in [fy * 0.32, fy * 0.68]:
+						var in_seg: bool = (zone_x < float(w) * 0.5 and float(x) >= zone_x - 4.0 and float(x) <= zone_x + 12.0) or (zone_x >= float(w) * 0.5 and float(x) <= zone_x + 4.0 and float(x) >= zone_x - 12.0)
+						if absf(float(y) - ly) < 1.0 and in_seg:
+							tr = 0.6
+					if dx < 1.0 and float(y) > fy * 0.2 and float(y) < fy * 0.8:
+						tr = 0.6
 			var pad := 0.0
-			for p in [Vector2(lx1, ly1), Vector2(lx1, ly2), Vector2(float(w) * 0.2, ly2)]:
-				if Vector2(float(x), float(y)).distance_to(p) < 2.6:
+			for p in [Vector2(14, fy * 0.32), Vector2(14, fy * 0.68), Vector2(float(w) - 14, fy * 0.32), Vector2(float(w) - 14, fy * 0.68)]:
+				if Vector2(float(x), float(y)).distance_to(p) < 2.4:
 					pad = 1.0
-			col.r += accent.r * (tr * 0.10 + pad * 0.35)
-			col.g += accent.g * (tr * 0.10 + pad * 0.35)
-			col.b += accent.b * (tr * 0.10 + pad * 0.35)
-			# neon edge + outer glow falloff
-			if edge < 2.5:
+			col.r += accent.r * (tr * 0.12 + pad * 0.4)
+			col.g += accent.g * (tr * 0.12 + pad * 0.4)
+			col.b += accent.b * (tr * 0.12 + pad * 0.4)
+			# slim neon edge + short outer glow falloff
+			if edge < 2.0:
 				col = Color(accent.r, accent.g, accent.b, 1.0)
-			elif edge < 2.5 + float(glow_px):
-				var g: float = 1.0 - (edge - 2.5) / float(glow_px)
-				col.r += accent.r * g * 0.45
-				col.g += accent.g * g * 0.45
-				col.b += accent.b * g * 0.45
+			elif edge < 2.0 + float(glow_px):
+				var g: float = 1.0 - (edge - 2.0) / float(glow_px)
+				col.r += accent.r * g * 0.4
+				col.g += accent.g * g * 0.4
+				col.b += accent.b * g * 0.4
 			img.set_pixel(x, y, col)
 	return ImageTexture.create_from_image(img)
 
@@ -69,12 +73,12 @@ static func _tex(accent: Color, kind: String, state: String) -> StyleBoxTexture:
 	var w := 96
 	var h := 96
 	var cut := 12
-	var glow := 5
+	var glow := 4
 	if kind == "btn":
 		w = 64
 		h = 32
 		cut = 7
-		glow = 4
+		glow = 3
 	var a := accent
 	if state == "hover":
 		a = accent.lightened(0.35)

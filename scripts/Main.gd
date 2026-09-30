@@ -451,9 +451,10 @@ func _data_rain(parent: Control) -> void:
 		var col: Color = cols[i % cols.size()]
 		l.add_theme_font_size_override("font_size", 15)
 		l.add_theme_color_override("font_color", col)
-		l.modulate.a = randf_range(0.15, 0.5)
+		l.modulate.a = randf_range(0.12, 0.4)
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var x := randf_range(0.0, 1880.0)
+		# content zone only: keep the rail + header + version corner clean
+		var x := randf_range(320.0, 1880.0)
 		l.position = Vector2(x, randf_range(-900.0, 0.0))
 		parent.add_child(l)
 		_fall_loop(l, glyphs)

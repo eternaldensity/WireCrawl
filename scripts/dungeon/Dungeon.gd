@@ -27,6 +27,9 @@ var vault_center := Vector3.ZERO
 var has_vault := false
 var vault_item := {}
 var terminals: Array = []
+var zone_names: Array = []
+var cur_zone := 0
+var _zone_t := 0.0
 var clear_timer := 0.0
 var float_layer: Node3D
 var fx_layer: Node3D
@@ -37,22 +40,39 @@ var _last_kill_t := -99.0
 func setup(p_contract: Dictionary) -> void:
 	contract = p_contract
 	threat = int(p_contract.get("threat", 1))
-	var room_target: int = int(p_contract.get("rooms", 9))
-	layout = _generate_layout(threat, room_target)
+	var rooms_per_zone := 4 + threat
+	layout = _generate_layout(threat, rooms_per_zone, 3)
+	var sector := String(p_contract.get("sector", "The Sprawl"))
+	zone_names = ["%s — APPROACH" % sector, "%s — SPRAWL" % sector, "%s — CORE" % sector]
+	cur_zone = 0
 
 static func rust_available() -> bool:
 	return ClassDB.class_exists("WCDungeonRust")
 
-func _generate_layout(p_threat: int, room_target: int) -> Dictionary:
+func _generate_layout(p_threat: int, rooms_per_zone: int, zones: int) -> Dictionary:
 	## Prefer the compiled Rust core when present; GDScript fallback otherwise.
 	if rust_available():
 		var rust = ClassDB.instantiate("WCDungeonRust")
 		var seed := randi()
-		var d: Dictionary = rust.call("generate", seed, p_threat, room_target)
+		var raw = rust.call("generate_sector", seed, p_threat, rooms_per_zone, zones)
 		rust.free()
-		if not d.is_empty() and (d.get("rooms") as Array).size() >= room_target:
-			return d
-	return DungeonGen.generate(p_threat, room_target)
+		if typeof(raw) == TYPE_DICTIONARY:
+			var d: Dictionary = raw
+			if not d.is_empty() and (d.get("rooms") as Array).size() >= rooms_per_zone:
+				return d
+	return DungeonGen.generate_sector(p_threat, rooms_per_zone, 0, zones)
+
+func zone_of(cell: Vector2i) -> int:
+	var w: int = layout["w"]
+	var borders: Array = layout.get("borders", [])
+	var z := 0
+	for b in borders.size():
+		var bd: Dictionary = borders[b]
+		var cut: float = float(w) * float(b + 1) / float(borders.size() + 1)
+		cut += float(bd["amp"]) * sin(float(cell.y) * float(bd["freq"]) + float(bd["phase"]))
+		if cell.x >= int(cut):
+			z = b + 1
+	return z
 
 func _ready() -> void:
 	_build_environment()
@@ -428,12 +448,16 @@ func _build_props(ox: float, oz: float) -> void:
 	props.collision_mask = 0
 	add_child(props)
 	var placed := 0
+	var ri := 0
 	for r in layout["rooms"] as Array:
 		var room := r as Rect2i
-		# holo billboard pillar at room corner
+		# holo billboard pillar at room corner (lights throttled: every 3rd
+		# room or special rooms, to bound forward-render light counts)
 		var corner := Vector2i(room.position.x + 1, room.position.y + 1)
 		var hc: Color = holo_colors[rng.randi() % holo_colors.size()]
-		_holo_pillar(props, _cell_to_world(corner) + Vector3(0, 0, 0), hc)
+		_holo_pillar(props, _cell_to_world(corner) + Vector3(0, 0, 0), hc,
+			ri % 3 == 0 or _room_has_tile(room, DungeonGen.TILE_LOOT))
+		ri += 1
 		# crates: 0-3 per room, never on spawn/exit
 		for _i in rng.randi_range(0, 2):
 			var cx := rng.randi_range(room.position.x + 1, room.position.x + room.size.x - 2)
@@ -518,7 +542,7 @@ func _pillar(parent: Node, pos: Vector3, rng: RandomNumberGenerator) -> void:
 	cs.position = pillar.position
 	parent.add_child(cs)
 
-func _holo_pillar(parent: Node, pos: Vector3, col: Color) -> void:
+func _holo_pillar(parent: Node, pos: Vector3, col: Color, with_light := true) -> void:
 	var pillar := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = 0.25
@@ -554,12 +578,13 @@ func _holo_pillar(parent: Node, pos: Vector3, col: Color) -> void:
 	bob.set_loops()
 	bob.tween_property(sign_mesh, "position:y", sign_mesh.position.y + 0.35, 1.6).set_ease(Tween.EASE_IN_OUT)
 	bob.tween_property(sign_mesh, "position:y", sign_mesh.position.y, 1.6).set_ease(Tween.EASE_IN_OUT)
-	var light := OmniLight3D.new()
-	light.light_color = col
-	light.light_energy = 1.2
-	light.omni_range = 10.0
-	light.position = pos + Vector3(0, 3.0, 0)
-	parent.add_child(light)
+	if with_light:
+		var light := OmniLight3D.new()
+		light.light_color = col
+		light.light_energy = 1.2
+		light.omni_range = 10.0
+		light.position = pos + Vector3(0, 3.0, 0)
+		parent.add_child(light)
 	# hackable terminal marker: gold ring at the pillar base
 	var tring := MeshInstance3D.new()
 	var ttm := TorusMesh.new()
@@ -669,12 +694,14 @@ func _spawn_encounters() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(layout["seed"]) ^ 0x51f3
 	rooms_total = (layout["rooms"] as Array).size()
-	var spawn_cell: Vector2i = layout["spawn"]
+	var room_zones: Array = layout.get("room_zones", [])
 	var keys := ["punk", "razor", "drone", "enforcer", "hexer", "brute"]
 	for i in range(1, rooms_total):
 		var room: Rect2i = (layout["rooms"] as Array)[i]
+		var z: int = int(room_zones[i]) if i < room_zones.size() else 0
+		var teff := threat + z
 		var center := Vector2i(room.position.x + room.size.x / 2, room.position.y + room.size.y / 2)
-		var count := 2 + rng.randi() % 2 + (1 if threat >= 3 else 0)
+		var count := 2 + rng.randi() % 2 + (1 if teff >= 3 else 0)
 		if tiles_at(center) == DungeonGen.TILE_AMBUSH:
 			count += 2
 		for _k in count:
@@ -682,16 +709,16 @@ func _spawn_encounters() -> void:
 				rng.randi_range(room.position.y + 1, room.position.y + room.size.y - 2))
 			if not DungeonGen.is_walkable(layout, cell.x, cell.y):
 				continue
-			var ek := _pick_enemy(rng, keys)
-			var e := WCEnemy.spawn(self, ek, _cell_to_world(cell) + Vector3(0, 0.5, 0), threat)
+			var ek := _pick_enemy(rng, keys, teff)
+			var e := WCEnemy.spawn(self, ek, _cell_to_world(cell) + Vector3(0, 0.5, 0), teff)
 			e.dungeon = self
-			if rng.randf() < 0.12 and not e.is_boss:
+			if rng.randf() < 0.12 + 0.03 * z and not e.is_boss:
 				e.make_elite()
 				float_text(e.global_position + Vector3(0, 2.6, 0), "★ ELITE", Color(0.976, 0.941, 0.008))
 			enemies_alive += 1
-		# loot chest in loot rooms
+		# loot chest in loot rooms (deeper zones pay better luck)
 		if _room_has_tile(room, DungeonGen.TILE_LOOT):
-			var item := LootFactory.roll_weapon(threat, RunManager.luck + 0.5)
+			var item := LootFactory.roll_weapon(teff, RunManager.luck + 0.5 + 0.3 * z)
 			RunManager.register_loot(item)
 			WCPickup.spawn(self, _cell_to_world(center) + Vector3(1.5, 0, 0), "loot", 0, item)
 			if rng.randf() < 0.5:
@@ -715,8 +742,8 @@ func _room_has_tile(room: Rect2i, tile: int) -> bool:
 				return true
 	return false
 
-func _pick_enemy(rng: RandomNumberGenerator, keys: Array) -> String:
-	var t := threat
+func _pick_enemy(rng: RandomNumberGenerator, keys: Array, teff: int) -> String:
+	var t := teff
 	var pool := ["punk", "punk", "razor", "drone"]
 	if t >= 2:
 		pool += ["enforcer", "hexer", "razor"]
@@ -802,6 +829,16 @@ func _process(delta: float) -> void:
 		cam.global_position = cam.global_position.lerp(target, 1.0 - pow(0.001, delta))
 	# rain follows player
 	clear_timer += delta
+	_zone_t -= delta
+	if _zone_t <= 0.0 and player != null:
+		_zone_t = 0.5
+		var z := zone_of(_world_to_cell(player.global_position))
+		if z != cur_zone:
+			cur_zone = z
+			if z < zone_names.size():
+				float_text(player.global_position + Vector3(0, 4.5, 0),
+					"◆ %s ◆" % String(zone_names[z]), Color(0.02, 0.85, 0.91))
+				AudioDirector.play("levelup", 1.2)
 
 func _build_camera() -> void:
 	cam = Camera3D.new()

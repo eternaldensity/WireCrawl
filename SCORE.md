@@ -2,6 +2,15 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.15 — multi-zone sectors (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.2 | 3-zone runs (~3x rooms), west→east traversal, zone escalation, entry banners, vault naturally deep. |
+| Usability | 9.0 | Zone banners orient; minimap spans districts. |
+| Layout | 8.9 | Elongated wiggly 3-district sectors, round-robin loot, sequential chaining. |
+| Content | 8.8 | Unchanged systems. |
+| **Mean** | **9.00** | Bar cleared. |
+
 ## v0.14 — ammo + stamina tactics (this commit)
 | Axis | Score | Notes |
 |---|---|---|

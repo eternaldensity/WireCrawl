@@ -61,8 +61,8 @@ func _synth(name: String) -> AudioStreamWAV:
 			_blip(s, 220.0, 120.0, 0.06, 0.45)
 			_whoosh(s, 0.05, 0.28, 0.4)
 		"explode":
-			_blip(s, 90.0, 35.0, 0.5, 0.55)
-			_whoosh(s, 0.5, 0.45, 0.12)
+			_blip(s, 90.0, 35.0, 0.5, 0.50)
+			_whoosh(s, 0.5, 0.38, 0.12)
 		"pickup":
 			_blip(s, 660.0, 1320.0, 0.12, 0.32)
 		"credits":

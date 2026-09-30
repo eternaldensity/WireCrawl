@@ -43,17 +43,20 @@ below. Autoloads boot in the order listed in `project.godot`.
   caller resolves (burst damage, chains, freezes) — engine never touches nodes.
 
 ## 7. DungeonGen (autoload)
-- `generate(threat, rooms, seed) -> {tiles, rooms, spawn, exit, ...}`,
-  `is_walkable`, `world_pos`, `random_floor_cell`.
-- Guarantee: all non-void tiles connected (corridors carved in placement order).
+- `generate(threat, rooms, seed)` single district; `generate_sector(threat,
+  rooms_per_zone, seed, zones)` elongated multi-zone (40 cells/zone, wiggly
+  sine borders, zone-order chaining, west spawn / east exit, round-robin
+  loot+ambush, room_zones). `is_walkable`, `world_pos`, `random_floor_cell`.
+- Guarantees: full connectivity, spawn zone 0, exit last zone.
 
 ## 8. Dungeon (per-run Node3D, `scripts/dungeon/Dungeon.gd`)
 - `setup(contract)` BEFORE entering tree → `_ready` builds environment, level,
   player, encounters, camera. Layout comes from the Rust core when the
   extension is loaded (`WCDungeonRust`, see §11), else `DungeonGen`.
   Post-layout, `_build_vault` seeds a far-room vault (elite guards + epic+
-  loot) on either backend. Holo pillars double as hackable terminals
-  (`try_hack`: credits/energy/bonus loot). Camera sits on +Z so W is screen-up.
+  loot) on either backend. Zone escalations (threat+zone spawns, elites,
+  luck), entry banners, throttled pillar lights. Holo pillars double as
+  hackable terminals (`try_hack`: credits/energy/bonus loot). Camera sits on +Z so W is screen-up.
 - Owns FX API used by entities: `float_text, spawn_damage_number,
   spawn_blast_fx, spawn_flash_fx, spawn_impact_fx, spawn_slash_fx (crescent),
   spawn_beam_fx`; room tints + wall window strips dress sectors; program AoE: `deploy_turret, summon_hound, blackout_blast,
@@ -95,10 +98,11 @@ below. Autoloads boot in the order listed in `project.godot`.
   pause controls (and the HUD binding row: SPACE dash, Q/E slots) work.
 
 ## 11. Rust core (`rust_ext/`, optional)
-- Mirrors §§1,5–7 hot paths (`generate_dungeon`, `roll_rarity`, `xp_for_level`,
-  connectivity). Exposed as `WCDungeonRust` GDExtension when compiled;
+- Mirrors §§1,5–7 hot paths (`generate_dungeon`/`generate_sector`,
+  `roll_rarity`, `xp_for_level`, connectivity) with matching unit tests.
+  Exposed as `WCDungeonRust` GDExtension when compiled;
   `WCDungeon._generate_layout` uses it when `ClassDB` reports it, else the
-  GDScript fallback. Verified: `cargo test` 3/3, cdylib links (zig-cc),
+  GDScript fallback. Verified: `cargo test` 4/4, cdylib links (zig-cc),
   loads on 4.7.2 (`Initialize godot-rust`), generates connected sectors
   through the engine (SimTest `rust_*`).
 - Repo ships the `.gdextension.template` + sources only; build with

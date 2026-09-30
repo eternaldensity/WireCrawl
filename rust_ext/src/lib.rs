@@ -80,6 +80,8 @@ pub struct Dungeon {
     pub h: usize,
     pub tiles: Vec<u8>,
     pub rooms: Vec<(usize, usize, usize, usize)>,
+    pub room_zones: Vec<usize>,
+    pub zones: usize,
     pub spawn: (usize, usize),
     pub exit: (usize, usize),
 }
@@ -169,7 +171,163 @@ pub fn generate_dungeon(seed: u64, threat: i32, room_target: usize) -> Dungeon {
     }
     tiles[spawn.1 * w + spawn.0] = TILE_SPAWN;
     tiles[exit.1 * w + exit.0] = TILE_EXIT;
-    Dungeon { seed, w, h, tiles, rooms, spawn, exit }
+    let nrooms = rooms.len();
+    Dungeon { seed, w, h, tiles, rooms, room_zones: vec![0; nrooms], zones: 1, spawn, exit }
+}
+
+/// Elongated multi-zone sector. Mirrors DungeonGen.generate_sector:
+/// 40 cells per zone, wiggly sine borders, rooms dealt per zone, chained
+/// in zone order, spawn west / exit east, round-robin loot + ambush tiles.
+pub fn generate_sector(seed: u64, threat: i32, rooms_per_zone: usize, zones: usize) -> Dungeon {
+    let mut rng = ChaCha8Rng::seed_from_u64(seed);
+    let zones = zones.max(1);
+    let (w, h) = (40 * zones, 64usize.min(72));
+    let h = if zones > 1 { 72 } else { h };
+    let mut tiles = vec![TILE_VOID; w * h];
+    let mut borders: Vec<(f32, f32, f32)> = Vec::new();
+    for _ in 0..zones.saturating_sub(1) {
+        borders.push((
+            rng.gen_range(3.0..6.0),
+            rng.gen_range(0.12..0.28),
+            rng.gen_range(0.0..std::f32::consts::TAU),
+        ));
+    }
+    let mut rooms: Vec<(usize, usize, usize, usize)> = Vec::new();
+    let mut room_zones: Vec<usize> = Vec::new();
+    for z in 0..zones {
+        let mut placed = 0;
+        let mut attempts = 0;
+        while placed < rooms_per_zone && attempts < 160 {
+            attempts += 1;
+            let rw = rng.gen_range(7..=13);
+            let rh = rng.gen_range(6..=11);
+            let rx = rng.gen_range(2..=(w - rw - 3));
+            let ry = rng.gen_range(2..=(h - rh - 3));
+            let (cx, cy) = (rx + rw / 2, ry + rh / 2);
+            if zone_of_x(w, &borders, cx, cy) != z {
+                continue;
+            }
+            let overlaps = rooms.iter().any(|&(ex, ey, ew, eh)| {
+                rx < ex + ew + 2 && ex < rx + rw + 2 && ry < ey + eh + 2 && ey < ry + rh + 2
+            });
+            if overlaps {
+                continue;
+            }
+            for y in ry..ry + rh {
+                for x in rx..rx + rw {
+                    tiles[y * w + x] = TILE_FLOOR;
+                }
+            }
+            rooms.push((rx, ry, rw, rh));
+            room_zones.push(z);
+            placed += 1;
+        }
+    }
+    if rooms.is_empty() {
+        for y in 24..38 {
+            for x in 24..40 {
+                tiles[y * w + x] = TILE_FLOOR;
+            }
+        }
+        rooms.push((24, 24, 16, 14));
+        room_zones.push(0);
+    }
+    let center = |(x, y, rw, rh): (usize, usize, usize, usize)| (x + rw / 2, y + rh / 2);
+    let mut stamp = |x: usize, y: usize| {
+        for dy in [0, 1] {
+            for dx in [0, 1] {
+                let (qx, qy) = (x.saturating_sub(dx), y.saturating_sub(dy));
+                let idx = qy * w + qx;
+                if tiles[idx] == TILE_VOID {
+                    tiles[idx] = TILE_CORRIDOR;
+                }
+            }
+        }
+    };
+    let mut order: Vec<usize> = Vec::new();
+    for z in 0..zones {
+        for (i, rz) in room_zones.iter().enumerate() {
+            if *rz == z {
+                order.push(i);
+            }
+        }
+    }
+    for i in 1..order.len() {
+        let (ax, ay) = center(rooms[order[i - 1]]);
+        let (bx, by) = center(rooms[order[i]]);
+        let (mut px, mut py) = (ax, ay);
+        if rng.gen_bool(0.5) {
+            while px != bx {
+                px = if bx > px { px + 1 } else { px - 1 };
+                stamp(px, py);
+            }
+            while py != by {
+                py = if by > py { py + 1 } else { py - 1 };
+                stamp(px, py);
+            }
+        } else {
+            while py != by {
+                py = if by > py { py + 1 } else { py - 1 };
+                stamp(px, py);
+            }
+            while px != bx {
+                px = if bx > px { px + 1 } else { px - 1 };
+                stamp(px, py);
+            }
+        }
+    }
+    let mut spawn = center(rooms[order[0]]);
+    let mut exit = spawn;
+    let (mut spawn_x, mut exit_x) = (usize::MAX, 0usize);
+    for (i, r) in rooms.iter().enumerate() {
+        let c = center(*r);
+        if room_zones[i] == 0 && c.0 < spawn_x {
+            spawn_x = c.0;
+            spawn = c;
+        }
+        if room_zones[i] == zones - 1 && c.0 > exit_x {
+            exit_x = c.0;
+            exit = c;
+        }
+    }
+    tiles[spawn.1 * w + spawn.0] = TILE_SPAWN;
+    tiles[exit.1 * w + exit.0] = TILE_EXIT;
+    let loot_each = 1 + (threat / 4) as usize;
+    let ambush_each = 1 + (threat / 3) as usize;
+    for z in 0..zones {
+        let mut li = 0;
+        for (i, r) in rooms.iter().enumerate() {
+            if room_zones[i] != z {
+                continue;
+            }
+            let c = center(*r);
+            if c == spawn || c == exit {
+                continue;
+            }
+            if li >= loot_each + ambush_each {
+                break;
+            }
+            if li < loot_each {
+                tiles[c.1 * w + c.0 + 1] = TILE_LOOT;
+            } else {
+                tiles[c.1 * w + c.0] = TILE_AMBUSH;
+            }
+            li += 1;
+        }
+    }
+    Dungeon { seed, w, h, tiles, rooms, room_zones, zones, spawn, exit }
+}
+
+fn zone_of_x(w: usize, borders: &[(f32, f32, f32)], x: usize, y: usize) -> usize {
+    let mut z = 0;
+    for (b, (amp, freq, phase)) in borders.iter().enumerate() {
+        let cut = w as f32 * (b + 1) as f32 / (borders.len() + 1) as f32
+            + amp * ((y as f32) * freq + phase).sin();
+        if x as f32 >= cut {
+            z = b + 1;
+        }
+    }
+    z
 }
 
 /// Connectivity check: every floor tile reachable from spawn?
@@ -225,10 +383,10 @@ impl INode for WCDungeonRust {
 
 #[godot_api]
 impl WCDungeonRust {
-    /// Fast seeded layout; returns a Dictionary compatible with DungeonGen output.
+    /// Fast seeded sector; returns a Dictionary compatible with DungeonGen output.
     #[func]
-    fn generate(&self, seed: i64, threat: i64, rooms: i64) -> Dictionary {
-        let d = generate_dungeon(seed as u64, threat as i32, rooms as usize);
+    fn generate_sector(&self, seed: i64, threat: i64, rooms_per_zone: i64, zones: i64) -> Dictionary {
+        let d = generate_sector(seed as u64, threat as i32, rooms_per_zone as usize, zones as usize);
         let mut tiles = PackedByteArray::new();
         tiles.resize(d.tiles.len());
         for (i, t) in d.tiles.iter().enumerate() {
@@ -241,11 +399,17 @@ impl WCDungeonRust {
                 Vector2i::new(*w as i32, *h as i32),
             ));
         }
+        let mut zone_arr = Array::new();
+        for z in &d.room_zones {
+            zone_arr.push(*z as i64);
+        }
         dict! {
             "seed": d.seed as i64,
             "w": d.w as i64, "h": d.h as i64,
             "tiles": tiles,
             "rooms": room_arr,
+            "room_zones": zone_arr,
+            "zones": d.zones as i64,
             "spawn": Vector2i::new(d.spawn.0 as i32, d.spawn.1 as i32),
             "exit": Vector2i::new(d.exit.0 as i32, d.exit.1 as i32),
             "threat": threat,
@@ -268,6 +432,19 @@ impl WCDungeonRust {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sectors_are_connected_and_zoned() {
+        for seed in 1..=10 {
+            let d = generate_sector(seed, 2, 4, 3);
+            assert!(is_fully_connected(&d), "sector {seed} disconnected");
+            assert_eq!(d.zones, 3);
+            assert_eq!(d.rooms.len(), d.room_zones.len());
+            assert!(d.rooms.len() >= 9, "too few rooms");
+            assert_ne!(d.spawn, d.exit);
+            assert!(d.spawn.0 < d.exit.0, "exit should be east of spawn");
+        }
+    }
 
     #[test]
     fn dungeons_are_connected() {

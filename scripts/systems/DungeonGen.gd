@@ -1,9 +1,10 @@
 extends Node
 ## DungeonGen — deterministic procedural sector layouts (seeded).
-## Grid dungeon: rooms placed via random walk + BSP-ish splits, connected by
-## L-corridors. Output: {seed, w, h, tiles (0 void,1 floor,2 corridor,3 spawn,
-## 4 exit,5 loot,6 ambush), rooms[], spawn, exit, threat}.
-## Same algorithm is mirrored in rust_ext/src/lib.rs (authoritative port).
+## Single-district `generate()` plus multi-zone `generate_sector()`: an
+## elongated grid split into wiggly-bordered zones chained west→east, rooms
+## dealt per zone and connected in zone order for sequential traversal.
+## Output adds: zones, borders[], room_zones[].
+## Hot paths are mirrored in rust_ext/src/lib.rs.
 
 const TILE_VOID := 0
 const TILE_FLOOR := 1
@@ -76,7 +77,117 @@ func generate(threat: int, room_target := 9, dungeon_seed := 0) -> Dictionary:
 			_put_tile(tiles, w, c, TILE_AMBUSH)
 			specials["ambush"] += 1
 	return {"seed": dungeon_seed, "w": w, "h": h, "tiles": tiles,
-		"rooms": rooms, "spawn": spawn, "exit": exit, "threat": threat}
+		"rooms": rooms, "spawn": spawn, "exit": exit, "threat": threat,
+		"zones": 1, "borders": [], "room_zones": []}
+
+func generate_sector(threat: int, rooms_per_zone := 6, dungeon_seed := 0, zones := 3) -> Dictionary:
+	## Elongated multi-zone sector: 40 cells of width per zone, wiggly
+	## sine borders, rooms dealt round-robin per zone, connected in zone
+	## order so the run flows west → east through every district.
+	var rng := RandomNumberGenerator.new()
+	if dungeon_seed == 0:
+		rng.randomize()
+		dungeon_seed = rng.randi()
+	rng.seed = dungeon_seed
+	var w := 40 * maxi(zones, 1)
+	var h := 72
+	var tiles := PackedByteArray()
+	tiles.resize(w * h)
+	tiles.fill(TILE_VOID)
+	var borders: Array = []
+	for b in maxi(zones - 1, 0):
+		borders.append({"amp": rng.randf_range(3.0, 6.0), "freq": rng.randf_range(0.12, 0.28),
+			"phase": rng.randf_range(0.0, TAU)})
+	var rooms: Array = []
+	var room_zones: Array = []
+	for z in zones:
+		var placed := 0
+		var attempts := 0
+		while placed < rooms_per_zone and attempts < 160:
+			attempts += 1
+			var rw: int = rng.randi_range(7, 13)
+			var rh: int = rng.randi_range(6, 11)
+			var rx: int = rng.randi_range(2, w - rw - 3)
+			var ry: int = rng.randi_range(2, h - rh - 3)
+			var cand := Rect2i(rx, ry, rw, rh)
+			var cc := _center(cand)
+			if _zone_of_x(w, borders, cc.x, cc.y) != z:
+				continue
+			var overlap := false
+			for r in rooms:
+				if (r as Rect2i).grow(2).intersects(cand):
+					overlap = true
+					break
+			if overlap:
+				continue
+			rooms.append(cand)
+			room_zones.append(z)
+			_carve_rect(tiles, w, h, cand, TILE_FLOOR)
+			placed += 1
+	if rooms.is_empty():
+		rooms.append(Rect2i(24, 24, 16, 14))
+		room_zones.append(0)
+		_carve_rect(tiles, w, h, rooms[0], TILE_FLOOR)
+	# Chain in zone order (stable within zone): guarantees every district
+	# is reachable and the critical path crosses each border once.
+	var order: Array = []
+	for z in zones:
+		for i in rooms.size():
+			if int(room_zones[i]) == z:
+				order.append(i)
+	for i in range(1, order.size()):
+		_connect(tiles, w, h, _center(rooms[order[i - 1]]), _center(rooms[order[i]]), rng)
+	# Spawn: westmost zone-0 room; exit: eastmost last-zone room.
+	var spawn := _center(rooms[order[0]])
+	var exit := spawn
+	var spawn_x := 1 << 30
+	var exit_x := -1
+	for i in rooms.size():
+		var c := _center(rooms[i])
+		if int(room_zones[i]) == 0 and c.x < spawn_x:
+			spawn_x = c.x
+			spawn = c
+		if int(room_zones[i]) == zones - 1 and c.x > exit_x:
+			exit_x = c.x
+			exit = c
+	_put_tile(tiles, w, spawn, TILE_SPAWN)
+	_put_tile(tiles, w, exit, TILE_EXIT)
+	# Specials dealt round-robin per zone so every district pays loot.
+	var per_zone: Array = []
+	for z in zones:
+		var lst: Array = []
+		for i in rooms.size():
+			var c := _center(rooms[i])
+			if int(room_zones[i]) == z and c != spawn and c != exit:
+				lst.append(rooms[i])
+		lst.shuffle()
+		per_zone.append(lst)
+	var loot_each := 1 + threat / 4
+	var ambush_each := 1 + threat / 3
+	for z in zones:
+		var li := 0
+		for r in per_zone[z]:
+			if li >= loot_each + ambush_each:
+				break
+			var c := _center(r)
+			if li < loot_each:
+				_put_tile(tiles, w, c + Vector2i(1, 0), TILE_LOOT)
+			else:
+				_put_tile(tiles, w, c, TILE_AMBUSH)
+			li += 1
+	return {"seed": dungeon_seed, "w": w, "h": h, "tiles": tiles,
+		"rooms": rooms, "room_zones": room_zones, "spawn": spawn, "exit": exit,
+		"threat": threat, "zones": zones, "borders": borders}
+
+func _zone_of_x(w: int, borders: Array, x: int, y: int) -> int:
+	var z := 0
+	for b in borders.size():
+		var bd: Dictionary = borders[b]
+		var cut: float = float(w) * float(b + 1) / float(borders.size() + 1)
+		cut += float(bd["amp"]) * sin(float(y) * float(bd["freq"]) + float(bd["phase"]))
+		if x >= int(cut):
+			z = b + 1
+	return z
 
 func _carve_rect(tiles: PackedByteArray, w: int, h: int, r: Rect2i, v: int) -> void:
 	for y in range(r.position.y, r.position.y + r.size.y):

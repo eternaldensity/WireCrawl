@@ -94,9 +94,10 @@ func _test_rust_backend() -> void:
 		return
 	_check(true, "rust_backend_present")
 	var rust = ClassDB.instantiate("WCDungeonRust")
-	var d: Dictionary = rust.call("generate", 1234, 3, 9)
+	var d: Dictionary = rust.call("generate_sector", 1234, 3, 4, 3)
 	rust.free()
 	_check(not d.is_empty() and (d.get("rooms") as Array).size() >= 9, "rust_room_count")
+	_check((d.get("rooms") as Array).size() == (d.get("room_zones") as Array).size(), "rust_zone_tags")
 	_check(_connected(d), "rust_dungeon_connected")
 	_check(d.get("rust", false) == true, "rust_backend_flag")
 
@@ -340,6 +341,21 @@ func _test_dungeon_connectivity() -> void:
 		_check(d["spawn"] != d["exit"], "spawn_ne_exit_seed%d" % s)
 		_check((d["rooms"] as Array).size() >= 9, "room_count_seed%d" % s,
 			"(%d rooms)" % (d["rooms"] as Array).size())
+	for s in [3, 44, 777]:
+		var sec: Dictionary = DungeonGen.generate_sector(2, 4, s, 3)
+		_check(_connected(sec), "sector_connected_seed%d" % s)
+		_check(int(sec["zones"]) == 3, "sector_zone_count_seed%d" % s)
+		_check((sec["rooms"] as Array).size() >= 9, "sector_room_count_seed%d" % s,
+			"(%d rooms)" % (sec["rooms"] as Array).size())
+		_check((sec["rooms"] as Array).size() == (sec["room_zones"] as Array).size(),
+			"sector_zone_tags_seed%d" % s)
+		var sc: Vector2i = sec["spawn"]
+		var ec: Vector2i = sec["exit"]
+		_check(sc.x < ec.x, "sector_exit_east_seed%d" % s)
+		_check(DungeonGen._zone_of_x(sec["w"], sec["borders"], sc.x, sc.y) == 0,
+			"sector_spawn_zone0_seed%d" % s)
+		_check(DungeonGen._zone_of_x(sec["w"], sec["borders"], ec.x, ec.y) == 2,
+			"sector_exit_zone2_seed%d" % s)
 
 func _connected(d: Dictionary) -> bool:
 	var w: int = d["w"]

@@ -203,6 +203,9 @@ func try_fire() -> void:
 			pellets += 1
 	if bool(wbase.get("projectile", true)):
 		AudioDirector.play("shoot_heavy" if wbase.get("slot") == "heavy" else "shoot")
+		if dungeon != null and dungeon.has_method("spawn_flash_fx"):
+			dungeon.spawn_flash_fx(global_position + Vector3(0, 1.1, 0) + aim_dir * 1.2,
+				GameDB.DAMAGE_COLORS.get(String(wbase.get("dmg_type", "kinetic")), Color.WHITE))
 		var spread: float = float(wbase.get("spread", 0.05))
 		for i in pellets:
 			var dir := aim_dir.rotated(Vector3.UP, randf_range(-spread, spread) * pellets)

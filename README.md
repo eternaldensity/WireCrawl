@@ -41,10 +41,13 @@ and all audio are generated in code.
 
 ```sh
 python3 tests/test_balance.py                    # balance math mirror
-/tmp/opencode/godot_bin/Godot_v4.7.2-stable_linux.x86_64 --headless --path . --import   # project import
-/tmp/opencode/godot_bin/Godot_v4.7.2-stable_linux.x86_64 --headless --path . -s tests/SimTest.gd  # systems sim
-cd rust_ext && cargo test                        # rust core (needs cargo)
+godot --headless --path . --import               # project import, must be script-error free
+godot --headless --path . res://tests/SimTest.tscn  # systems sim + dungeon boot test
+cd rust_ext && cargo test                        # rust core (needs cargo + C linker)
 ```
+The compiled Rust core is optional: copy
+`rust_ext/wirecrawl.gdextension.template` → `rust_ext/wirecrawl.gdextension`
+after `cargo build --release`, placing the lib in `rust_ext/bin/`.
 
 ## Progression & synergies (short)
 

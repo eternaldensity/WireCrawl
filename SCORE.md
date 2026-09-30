@@ -2,7 +2,17 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.1.0 — initial playable slice (this commit)
+## v0.2 — game-feel + backdrop pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 8.2 | Hit-stop on kills/boss, muzzle flash, enemy materialize-in, AoE boot-tested. |
+| Usability | 8.0 | Unchanged. Settings sliders + loot choice queued for v0.3. |
+| Layout | 8.2 | Unchanged (connected guarantee holds across 5+ seeds in sim). |
+| Content | 8.4 | Unchanged. |
+| Visuals | 8.5 | Skyline ring with lit crowns, animated holo signs, pulsing extract beam. |
+| **Mean** | **8.26** | Still below bar — v0.3: weapon swap + loot choice + settings. |
+
+## v0.1.0 — initial playable slice
 | Axis | Score | Notes |
 |---|---|---|
 | Gameplay | 8.0 | Full loop (hub→run→extract→meta), 6 synergies, 5 AI behaviors, boss phases, 3 programs no wait: 5 programs, dash i-frames. Missing: melee/ranged auto-swap loadout, active reload. |

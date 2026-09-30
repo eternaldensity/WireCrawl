@@ -26,6 +26,7 @@ var extracted := false
 var clear_timer := 0.0
 var float_layer: Node3D
 var fx_layer: Node3D
+var _slowmo_token := 0
 
 func setup(p_contract: Dictionary) -> void:
 	contract = p_contract
@@ -101,6 +102,60 @@ func _build_environment() -> void:
 	fx_layer = Node3D.new()
 	fx_layer.name = "FX"
 	add_child(fx_layer)
+	_build_skyline()
+
+func _build_skyline() -> void:
+	## Distant neon megastructure silhouettes ringing the sector.
+	if layout.is_empty():
+		return
+	var w: int = layout["w"]
+	var h: int = layout["h"]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(layout["seed"]) ^ 0x5eed
+	var cols := [Color(0.02, 0.85, 0.91), Color(1.0, 0.16, 0.43),
+		Color(0.976, 0.941, 0.008), Color(0.75, 0.35, 1.0)]
+	var half_w := w * CELL / 2.0
+	var half_h := h * CELL / 2.0
+	for i in 46:
+		var side := i % 4
+		var px := 0.0
+		var pz := 0.0
+		match side:
+			0: px = rng.randf_range(-half_w, half_w); pz = -half_h - rng.randf_range(14, 60)
+			1: px = rng.randf_range(-half_w, half_w); pz = half_h + rng.randf_range(14, 60)
+			2: px = -half_w - rng.randf_range(14, 60); pz = rng.randf_range(-half_h, half_h)
+			_: px = half_w + rng.randf_range(14, 60); pz = rng.randf_range(-half_h, half_h)
+		var bw := rng.randf_range(6, 16)
+		var bh := rng.randf_range(10, 46)
+		var bd := rng.randf_range(6, 16)
+		var col: Color = cols[rng.randi() % cols.size()]
+		var tower := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(bw, bh, bd)
+		tower.mesh = bm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.01, 0.01, 0.03)
+		mat.emission_enabled = true
+		mat.emission = col
+		mat.emission_energy_multiplier = rng.randf_range(0.25, 0.8)
+		tower.material_override = mat
+		tower.position = Vector3(px, bh / 2.0 - 2.0, pz)
+		add_child(tower)
+		# lit crown
+		if rng.randf() < 0.6:
+			var crown := MeshInstance3D.new()
+			var cm := BoxMesh.new()
+			cm.size = Vector3(bw * 0.7, 0.5, bd * 0.7)
+			crown.mesh = cm
+			var cmat := StandardMaterial3D.new()
+			cmat.albedo_color = col
+			cmat.emission_enabled = true
+			cmat.emission = col
+			cmat.emission_energy_multiplier = 3.5
+			cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			crown.material_override = cmat
+			crown.position = Vector3(px, bh - 1.75, pz)
+			add_child(crown)
 
 func _neon_grid_material() -> ShaderMaterial:
 	var sh := Shader.new()
@@ -312,6 +367,11 @@ func _holo_pillar(parent: Node, pos: Vector3, col: Color) -> void:
 	sign_mesh.material_override = smat
 	sign_mesh.position = pos + Vector3(0, 4.2, 0)
 	parent.add_child(sign_mesh)
+	# gentle hover animation
+	var bob := sign_mesh.create_tween()
+	bob.set_loops()
+	bob.tween_property(sign_mesh, "position:y", sign_mesh.position.y + 0.35, 1.6).set_ease(Tween.EASE_IN_OUT)
+	bob.tween_property(sign_mesh, "position:y", sign_mesh.position.y, 1.6).set_ease(Tween.EASE_IN_OUT)
 	var light := OmniLight3D.new()
 	light.light_color = col
 	light.light_energy = 1.2
@@ -357,6 +417,12 @@ func _build_exit(ox: float, oz: float) -> void:
 	light.position.y = 3.0
 	term.add_child(light)
 	term.body_entered.connect(_on_exit_enter)
+	var pulse := beam.create_tween()
+	pulse.set_loops()
+	pulse.tween_property(beam, "scale:x", 1.25, 0.9).set_ease(Tween.EASE_IN_OUT)
+	pulse.parallel().tween_property(beam, "scale:z", 1.25, 0.9).set_ease(Tween.EASE_IN_OUT)
+	pulse.tween_property(beam, "scale:x", 1.0, 0.9).set_ease(Tween.EASE_IN_OUT)
+	pulse.parallel().tween_property(beam, "scale:z", 1.0, 0.9).set_ease(Tween.EASE_IN_OUT)
 	float_text(exit_pos + Vector3(0, 6, 0), "▼ EXTRACT ▼", Color(0.3, 1.0, 0.5))
 
 # ---------------- actors ----------------
@@ -468,6 +534,7 @@ func _build_camera() -> void:
 # ---------------- combat callbacks ----------------
 func on_enemy_died(e: WCEnemy) -> void:
 	enemies_alive = maxi(0, enemies_alive - 1)
+	hitstop(0.15, 0.35 if e.is_boss else 0.05)
 	RunManager.register_kill({"name": e.data.get("name", "?"), "xp": e.xp, "creds": e.creds})
 	cam_shake = minf(1.2, cam_shake + (0.8 if e.is_boss else 0.25))
 	spawn_blast_fx(e.global_position + Vector3(0, 1, 0), 1.6, e.data.get("color", Color.RED))
@@ -563,6 +630,14 @@ func offer_loot(item: Dictionary) -> void:
 			"AUTO-EQUIPPED: " + String(item["name"]), GameDB.RARITY_COLORS[item["rarity"]])
 
 # ---------------- FX ----------------
+func hitstop(scale := 0.25, dur := 0.06) -> void:
+	_slowmo_token += 1
+	var token := _slowmo_token
+	Engine.time_scale = scale
+	await get_tree().create_timer(dur, true, false, true).timeout
+	if token == _slowmo_token and not get_tree().paused:
+		Engine.time_scale = 1.0
+
 func float_text(pos: Vector3, text: String, color: Color) -> void:
 	var label := Label3D.new()
 	label.text = text
@@ -579,6 +654,27 @@ func float_text(pos: Vector3, text: String, color: Color) -> void:
 	tw.tween_property(label, "position:y", label.position.y + 1.6, 1.1)
 	tw.tween_property(label, "modulate:a", 0.0, 1.1)
 	tw.chain().tween_callback(label.queue_free)
+
+func spawn_flash_fx(pos: Vector3, color: Color) -> void:
+	var m := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.32
+	sm.height = 0.64
+	m.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 5.0
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.material_override = mat
+	fx_layer.add_child(m)
+	m.global_position = pos
+	var tw := m.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(m, "scale", Vector3.ONE * 1.8, 0.09)
+	tw.tween_property(m, "transparency", 1.0, 0.09)
+	tw.chain().tween_callback(m.queue_free)
 
 func spawn_blast_fx(pos: Vector3, radius: float, color: Color) -> void:
 	var m := MeshInstance3D.new()

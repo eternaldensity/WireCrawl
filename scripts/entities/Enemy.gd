@@ -123,6 +123,10 @@ func _build_visual(sc: float) -> void:
 	add_child(_ring)
 	if is_boss:
 		AudioDirector.play("boss")
+	# materialize-in effect
+	scale = Vector3.ONE * 0.05
+	var pop := create_tween()
+	pop.tween_property(self, "scale", Vector3.ONE, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _physics_process(delta: float) -> void:
 	if dead:

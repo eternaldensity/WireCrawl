@@ -15,8 +15,60 @@ func _ready() -> void:
 	_test_synergies()
 	_test_run_manager()
 	_test_save_roundtrip()
+	await _test_dungeon_boot()
 	print("---- SIMTEST: %d passed, %d failed ----" % [passes, failures])
 	get_tree().quit(1 if failures > 0 else 0)
+
+func _ensure_test_input() -> void:
+	_add_test_key("move_fwd", [KEY_W])
+	_add_test_key("move_back", [KEY_S])
+	_add_test_key("move_left", [KEY_A])
+	_add_test_key("move_right", [KEY_D])
+	_add_test_key("dash", [KEY_SPACE])
+	_add_test_key("program_1", [KEY_Q])
+	_add_test_key("program_2", [KEY_E])
+	if not InputMap.has_action("fire"):
+		InputMap.add_action("fire")
+
+func _add_test_key(action: String, keys: Array) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	for kc in keys:
+		var ev := InputEventKey.new()
+		ev.physical_keycode = kc
+		InputMap.action_add_event(action, ev)
+
+func _test_dungeon_boot() -> void:
+	_ensure_test_input()
+	var starter: Dictionary = LootFactory.roll_weapon(1, 0.0, "smg", "common")
+	RunManager.start_run("solo", GameDB.CONTRACTS[0], starter, [], ["blink", "ice_turret", "blackout"])
+	var dng := WCDungeon.new()
+	dng.setup(GameDB.CONTRACTS[0])
+	add_child(dng)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(dng.player != null and is_instance_valid(dng.player), "dungeon_spawns_player")
+	_check(dng.enemies_alive > 0, "dungeon_spawns_enemies", "(%d)" % dng.enemies_alive)
+	_check(dng.cam != null, "dungeon_camera")
+	var foes := get_tree().get_nodes_in_group("enemies")
+	_check(not foes.is_empty(), "enemies_in_tree")
+	if not foes.is_empty():
+		var e: WCEnemy = foes[0] as WCEnemy
+		var kills0: int = RunManager.kills
+		e.take_hit(999999.0, "volt", ["test"], e.global_position + Vector3(1, 0, 0))
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		_check(RunManager.kills > kills0, "enemy_death_registers")
+		# program AoE paths
+		dng.blackout_blast(dng.player.global_position + Vector3(2, 0, 0), 1.0)
+		dng.system_shock(dng.player.global_position, 1.0)
+		dng.deploy_turret(dng.player.global_position, 1.0)
+		dng.summon_hound(dng.player.global_position)
+		await get_tree().physics_frame
+		_check(not get_tree().get_nodes_in_group("allies").is_empty(), "allies_deploy")
+	dng.queue_free()
+	RunManager.end_run(false)
 
 func _check(cond: bool, name: String, extra := "") -> void:
 	if cond:

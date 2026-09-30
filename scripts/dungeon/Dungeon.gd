@@ -214,6 +214,8 @@ void fragment() {
 	float h = hash(cell);
 	vec2 g = abs(fract(wpos.xz / 4.0) - 0.5);
 	float line = smoothstep(0.46, 0.5, max(g.x, g.y));
+	float core = smoothstep(0.487, 0.5, max(g.x, g.y));
+	float flow = 0.85 + 0.15 * sin(wpos.x * 0.4 + wpos.z * 0.23 - TIME * 1.6);
 	vec2 sub = abs(fract(wpos.xz / 1.0) - 0.5);
 	float subline = smoothstep(0.44, 0.5, max(sub.x, sub.y)) * 0.25;
 	vec2 g2 = abs(fract(wpos.xz / 20.0) - 0.5);
@@ -243,7 +245,8 @@ void fragment() {
 	float pool = smoothstep(0.22, 0.05, length(fract(wpos.xz / 24.0) - 0.5)) * step(0.68, hash(pb + 9.1));
 	col += mix(line_cyan.rgb, line_pink.rgb, hash(pb + 4.2)) * pool * 0.35;
 	ALBEDO = col;
-	EMISSION = line_col * (line * 1.6 + subline * 0.5) + line_pink.rgb * major * 2.2
+	EMISSION = (line_col * (line * 1.6 + subline * 0.5) + vec3(1.0) * core * 1.2) * flow
+		+ line_pink.rgb * major * 2.2
 		+ line_cyan.rgb * data_tile * 2.5
 		+ line_cyan.rgb * (trace_h + trace_v) * 1.8 + line_pink.rgb * pad * 2.4;
 	ROUGHNESS = 0.35;
@@ -363,14 +366,32 @@ func _build_level() -> void:
 						if faced < 0:
 							win.rotation.y = PI
 						walls.add_child(win)
-				# conduit pipe along the run + drops every ~5 cells (varied)
+						# bright core so windows read as lit, not flat paint
+						var core := MeshInstance3D.new()
+						var cqm := QuadMesh.new()
+						cqm.size = Vector2(1.0, 0.5)
+						core.mesh = cqm
+						var cmat := StandardMaterial3D.new()
+						cmat.albedo_color = Color.WHITE
+						cmat.emission_enabled = true
+						cmat.emission = Color(0.85, 0.95, 1.0)
+						cmat.emission_energy_multiplier = 3.5
+						cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+						core.material_override = cmat
+						core.position = Vector3(wx, 2.1, wz + (0.03 if faced >= 0 else -0.03))
+						if faced < 0:
+							core.rotation.y = PI
+						walls.add_child(core)
+				# conduit pipe along the run + drops every ~5 cells (varied).
+				# offset proud of the floor-facing wall face so they read.
 				if wlrng.randf() < 0.85:
+					var face_sign := 1.0 if faced >= 0 else -1.0
 					var pipe := MeshInstance3D.new()
 					var pm2 := BoxMesh.new()
 					pm2.size = Vector3(length - 0.4, 0.18, 0.18)
 					pipe.mesh = pm2
 					pipe.material_override = wall_mat
-					pipe.position = Vector3(cx, 2.95, cz + (CELL / 2.0 - 0.12) * (1.0 if faced >= 0 else -1.0))
+					pipe.position = Vector3(cx, 2.95, cz + face_sign * (CELL / 2.0 + 0.12))
 					walls.add_child(pipe)
 					var drops := clampi(int(length / (CELL * 2.5)), 1, 4)
 					for di in drops:
@@ -381,7 +402,7 @@ func _build_level() -> void:
 						drop.mesh = dm
 						drop.material_override = run_trim
 						drop.position = Vector3(ox + (float(dcell) + 0.5) * CELL, 1.45,
-							cz + (CELL / 2.0 - 0.12) * (1.0 if faced >= 0 else -1.0))
+							cz + face_sign * (CELL / 2.0 + 0.12))
 						walls.add_child(drop)
 				x = x2
 			else:

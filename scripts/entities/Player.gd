@@ -79,7 +79,7 @@ func _build_visual() -> void:
 	core_mat.emission = tint
 	core_mat.emission_energy_multiplier = 4.0
 	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_pbox(Vector3(0.2, 0.3, 0.06), Vector3(0, 1.15, 0.29), core_mat)
+	_pbox(Vector3(0.2, 0.3, 0.06), Vector3(0, 1.15, -0.29), core_mat)
 	# head + visor
 	_pbox(Vector3(0.45, 0.4, 0.45), Vector3(0, 1.7, 0), _mat)
 	var visor_mat := StandardMaterial3D.new()
@@ -88,7 +88,7 @@ func _build_visual() -> void:
 	visor_mat.emission = tint
 	visor_mat.emission_energy_multiplier = 5.0
 	visor_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_pbox(Vector3(0.5, 0.12, 0.06), Vector3(0, 1.72, 0.24), visor_mat)
+	_pbox(Vector3(0.5, 0.12, 0.06), Vector3(0, 1.72, -0.24), visor_mat)
 	# shoulder lamp (origin color beacon)
 	_pbox(Vector3(0.22, 0.18, 0.3), Vector3(-0.5, 1.45, 0), visor_mat)
 	_pbox(Vector3(0.22, 0.3, 0.3), Vector3(0.5, 1.4, 0), _mat)
@@ -144,38 +144,38 @@ func _rebuild_held() -> void:
 		var wid := String(weapon.get("weapon_id", "smg"))
 		var heavy := wid in ["plasma", "thumper", "toxin"]
 		var long := wid in ["railspike", "plasma"]
-		_hbox(Vector3(0.2, 0.24, 0.75 if not heavy else 0.95), Vector3(0.5, 0.95, 0.35), darkm)
-		_hbox(Vector3(0.1, 0.1, 1.0 if long else 0.55), Vector3(0.5, 1.0, 0.95 if long else 0.8), darkm)
-		_hbox(Vector3(0.14, 0.14, 0.14), Vector3(0.5, 1.0, 1.35 if long else 1.0), glowm)
-		_hbox(Vector3(0.06, 0.12, 0.06), Vector3(0.5, 1.15, 0.3), glowm)
+		_hbox(Vector3(0.2, 0.24, 0.75 if not heavy else 0.95), Vector3(0.5, 0.95, -0.35), darkm)
+		_hbox(Vector3(0.1, 0.1, 1.0 if long else 0.55), Vector3(0.5, 1.0, -(0.95 if long else 0.8)), darkm)
+		_hbox(Vector3(0.14, 0.14, 0.14), Vector3(0.5, 1.0, -(1.35 if long else 1.0)), glowm)
+		_hbox(Vector3(0.06, 0.12, 0.06), Vector3(0.5, 1.15, -0.3), glowm)
 		if wid == "scattergun":
-			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.42, 1.0, 0.7), darkm)
-			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.58, 1.0, 0.7), darkm)
+			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.42, 1.0, -0.7), darkm)
+			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.58, 1.0, -0.7), darkm)
 
 func _build_blade(wid: String, dcol: Color, darkm: Material, glowm: Material) -> void:
 	## Katana anatomy per weapon: handle + wrap bands + guard + fuller blade
 	## + clipped tip + glowing edge. Grip sits forward-right, never behind.
 	var gx := 0.58
-	_hbox(Vector3(0.13, 0.15, 0.5), Vector3(gx, 1.0, 0.35), darkm)
+	_hbox(Vector3(0.13, 0.15, 0.5), Vector3(gx, 1.0, -0.35), darkm)
 	for wi in 3:
-		_hbox(Vector3(0.15, 0.05, 0.1), Vector3(gx, 1.0, 0.2 + float(wi) * 0.14), glowm)
-	_hbox(Vector3(0.3, 0.06, 0.3), Vector3(gx, 1.0, 0.62), glowm)
+		_hbox(Vector3(0.15, 0.05, 0.1), Vector3(gx, 1.0, -0.2 - float(wi) * 0.14), glowm)
+	_hbox(Vector3(0.3, 0.06, 0.3), Vector3(gx, 1.0, -0.62), glowm)
 	var blen := 2.0
 	var bwid := 0.09
 	if wid == "blackice":
 		blen = 2.3
 		bwid = 0.14
-	_hbox(Vector3(bwid, 0.1, blen), Vector3(gx + 0.04, 1.05, 0.75 + blen / 2.0), darkm)
-	_hbox(Vector3(0.035, 0.05, blen * 0.9), Vector3(gx + 0.04, 1.1, 0.75 + blen / 2.0), glowm)
-	_hbox(Vector3(0.02, 0.03, blen), Vector3(gx + 0.085, 1.02, 0.75 + blen / 2.0), glowm)
-	var tip := _hbox(Vector3(bwid, 0.08, 0.34), Vector3(gx + 0.04, 1.08, 0.75 + blen + 0.12), darkm)
-	tip.rotation.x = -0.35
+	_hbox(Vector3(bwid, 0.1, blen), Vector3(gx + 0.04, 1.05, -(0.75 + blen / 2.0)), darkm)
+	_hbox(Vector3(0.035, 0.05, blen * 0.9), Vector3(gx + 0.04, 1.1, -(0.75 + blen / 2.0)), glowm)
+	_hbox(Vector3(0.02, 0.03, blen), Vector3(gx + 0.085, 1.02, -(0.75 + blen / 2.0)), glowm)
+	var tip := _hbox(Vector3(bwid, 0.08, 0.34), Vector3(gx + 0.04, 1.08, -(0.75 + blen + 0.12)), darkm)
+	tip.rotation.x = 0.35
 	if wid == "whip":
 		# energy chain: curving links instead of a straight rod
 		for li in 5:
 			var link := _hbox(Vector3(0.07, 0.07, 0.34),
-				Vector3(gx - 0.1 - float(li) * 0.16, 0.95 - float(li) * 0.1, 0.9 + float(li) * 0.42), glowm)
-			link.rotation.y = 0.35 * float(li)
+				Vector3(gx - 0.1 - float(li) * 0.16, 0.95 - float(li) * 0.1, -(0.9 + float(li) * 0.42)), glowm)
+			link.rotation.y = -0.35 * float(li)
 
 func _hbox(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()

@@ -54,6 +54,11 @@ func _test_pause_loop() -> void:
 	await get_tree().process_frame
 	_check(main_scene.process_mode == Node.PROCESS_MODE_ALWAYS, "main_process_always")
 	_check(main_scene.screen != null, "title_shows")
+	var reload_has_rmb := false
+	for e in InputMap.action_get_events("reload"):
+		if e is InputEventMouseButton and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+			reload_has_rmb = true
+	_check(reload_has_rmb, "rmb_reloads")
 	main_scene.sel_contract = 0
 	main_scene.start_dungeon()
 	for _i in 6:
@@ -197,6 +202,10 @@ func _test_dungeon_boot() -> void:
 	_check(String(dng.player.weapon.get("weapon_id", "?")) != first_id, "weapon_swap",
 		"(%s -> %s)" % [first_id, String(dng.player.weapon.get("weapon_id", "?"))])
 	_check(dng.player.held_kind == "blade", "held_blade_model")
+	var min_z := 999.0
+	for ch in dng.player.held.get_children():
+		min_z = minf(min_z, (ch as Node3D).position.z)
+	_check(min_z < -1.0, "blade_faces_forward", "(min z=%.2f)" % min_z)
 	# melee fire path: plant player next to a live foe and swing
 	var foe2: WCEnemy = null
 	for f in get_tree().get_nodes_in_group("enemies"):

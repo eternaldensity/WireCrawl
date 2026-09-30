@@ -58,6 +58,16 @@ func _ensure_input() -> void:
 	_add_key("equip_2", [KEY_2])
 	_add_key("interact", [KEY_F])
 	_add_key("reload", [KEY_R])
+	if not InputMap.has_action("reload"):
+		InputMap.add_action("reload")
+	var rmb := InputEventMouseButton.new()
+	rmb.button_index = MOUSE_BUTTON_RIGHT
+	var has_rmb := false
+	for e in InputMap.action_get_events("reload"):
+		if e is InputEventMouseButton and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+			has_rmb = true
+	if not has_rmb:
+		InputMap.action_add_event("reload", rmb)
 	if not InputMap.has_action("swap_weapon"):
 		InputMap.add_action("swap_weapon")
 		var tab := InputEventKey.new()
@@ -302,7 +312,7 @@ func _tab_settings() -> void:
 		SaveSystem.profile["settings"]["screenshake"] = on
 		SaveSystem.save_profile())
 	tab_content.add_child(WCTheme.section("CONTROLS", NEON_CYAN))
-	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · R reload · Q / E programs · 1 / 2 loot choice · F hack terminal · ESC pause", 13))
+	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · R / right-click reload · Q / E programs · 1 / 2 loot choice · F hack terminal · ESC pause", 13))
 	tab_content.add_child(WCTheme.section("DISPLAY", NEON_CYAN))
 	var fs := CheckButton.new()
 	fs.text = "Fullscreen (fixes editor-embed mouse offset; restart applies cleanly)"

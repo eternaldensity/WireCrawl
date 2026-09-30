@@ -31,6 +31,10 @@ var elite := false
 var strafe_dir := 1.0
 var strafe_t := 0.0
 var windup := 0.0
+var stuck_t := 0.0
+var detour := 0.0
+var detour_t := 0.0
+var pace := 1.0
 var _t := 0.0
 var _body: MeshInstance3D
 var _rig: Node3D
@@ -69,6 +73,8 @@ func _ready() -> void:
 	max_hp = float(data["hp"]) * GameDB.threat_hp_mult(threat)
 	dmg = float(data["dmg"]) * GameDB.threat_dmg_mult(threat)
 	speed = float(data["speed"])
+	pace = randf_range(0.9, 1.1)
+	speed *= pace
 	xp = int(data["xp"])
 	creds = int(data["creds"])
 	hp = max_hp
@@ -150,7 +156,7 @@ func _build_visual(sc: float) -> void:
 		ssm.height = 0.28 * sc
 		sensor.mesh = ssm
 		sensor.material_override = white
-		sensor.position = Vector3(0, 1.28, 0.15 * sc)
+		sensor.position = Vector3(0, 1.28, -0.15 * sc)
 		_rig.add_child(sensor)
 		_box(Vector3(0.06 * sc, 0.7 * sc, 0.06 * sc), Vector3(0, 2.2, 0), dark)
 		_box(Vector3(0.16 * sc, 0.16 * sc, 0.16 * sc), Vector3(0, 2.6, 0), glow)
@@ -161,7 +167,7 @@ func _build_visual(sc: float) -> void:
 		_body = _box(Vector3(0.9 * sc * slim * bulky, 1.1 * sc, 0.6 * sc * bulky),
 			Vector3(0, 1.0 * sc, 0), _mat)
 		_box(Vector3(0.5 * sc, 0.42 * sc, 0.5 * sc), Vector3(0, 1.78 * sc, 0), dark)
-		_box(Vector3(0.56 * sc * slim, 0.11 * sc, 0.06), Vector3(0, 1.8 * sc, 0.26 * sc), white)
+		_box(Vector3(0.56 * sc * slim, 0.11 * sc, 0.06), Vector3(0, 1.8 * sc, -0.26 * sc), white)
 		_box(Vector3(0.7 * sc, 0.09 * sc, 0.62 * sc), Vector3(0, 0.52 * sc, 0), glow)
 		match key:
 			"punk":
@@ -190,7 +196,7 @@ func _build_visual(sc: float) -> void:
 			"enforcer", "brute":
 				_box(Vector3(0.5 * sc, 0.35 * sc, 0.6 * sc), Vector3(-0.88 * sc, 1.62 * sc, 0), dark)
 				_box(Vector3(0.5 * sc, 0.35 * sc, 0.6 * sc), Vector3(0.88 * sc, 1.62 * sc, 0), dark)
-				_box(Vector3(0.4 * sc, 0.5 * sc, 0.1), Vector3(0, 1.15 * sc, 0.42 * sc * bulky), glow)
+				_box(Vector3(0.4 * sc, 0.5 * sc, 0.1), Vector3(0, 1.15 * sc, -0.42 * sc * bulky), glow)
 				_box(Vector3(0.3 * sc, 0.7 * sc, 0.3 * sc), Vector3(-0.62 * sc, 0.6 * sc, 0), dark)
 				_box(Vector3(0.3 * sc, 0.7 * sc, 0.3 * sc), Vector3(0.62 * sc, 0.6 * sc, 0), dark)
 			_:
@@ -198,7 +204,7 @@ func _build_visual(sc: float) -> void:
 					for spi in 3:
 						_box(Vector3(0.14 * sc, 0.6 * sc, 0.14 * sc),
 							Vector3((float(spi) - 1.0) * 0.35 * sc, 2.25 * sc, -0.1 * sc), glow)
-					_box(Vector3(0.5 * sc, 0.6 * sc, 0.12), Vector3(0, 1.2 * sc, 0.45 * sc * bulky),
+					_box(Vector3(0.5 * sc, 0.6 * sc, 0.12), Vector3(0, 1.2 * sc, -0.45 * sc * bulky),
 						_glow(Color(1.0, 0.9, 0.2), 4.5))
 	# ground status ring
 	_ring = MeshInstance3D.new()
@@ -366,8 +372,25 @@ func _physics_process(delta: float) -> void:
 		var d: Vector3 = global_position - (o as Node3D).global_position
 		d.y = 0.0
 		var l := d.length()
-		if l > 0.01 and l < 1.4:
-			velocity += d / l * 3.0
+		if l > 0.01 and l < 2.1:
+			velocity += d / l * 4.5
+	# unstick: pushing into a wall means walk along it for a bit
+	if is_on_wall() and Vector2(vel.x, vel.z).length() > 0.5:
+		stuck_t += delta
+	else:
+		stuck_t = maxf(0.0, stuck_t - delta * 2.0)
+	if detour_t > 0.0:
+		detour_t -= delta
+		if dir.length() > 0.01:
+			var side: Vector3 = dir.rotated(Vector3.UP, detour * PI / 2.0)
+			velocity.x = side.x * speed * slowed
+			velocity.z = side.z * speed * slowed
+		if detour_t <= 0.0 or _los_clear(target.global_position):
+			detour = 0.0
+	elif stuck_t > 0.5 and dir.length() > 0.01:
+		detour = 1.0 if randf() < 0.5 else -1.0
+		detour_t = randf_range(0.6, 1.2)
+		stuck_t = 0.0
 	move_and_slide()
 	# face target
 	if dir.length() > 0.01:

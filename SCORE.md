@@ -2,6 +2,15 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.18 — facing, flow, unstick (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.2 | Enemies wall-follow + spread instead of piling; RMB reload. |
+| Usability | 9.1 | Visors/weapons face forward; pipes sit proud; window cores. |
+| Layout | 8.9 | Unchanged sectors. |
+| Visuals | 9.3 | Grid cores + flow, lit window cores. |
+| **Mean** | **9.07** | Bar cleared. |
+
 ## v0.17 — vitals backing + radial presence (this commit)
 | Axis | Score | Notes |
 |---|---|---|

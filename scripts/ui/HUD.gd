@@ -14,6 +14,7 @@ var boss_bar: ProgressBar
 var boss_label: Label
 var boss_box: Control
 var heat_bar: ProgressBar
+var stamina_bar: ProgressBar
 var interact_label: Label
 var _obj_base := "Reach the EXIT uplink"
 var _obj_t := 0.0
@@ -72,6 +73,12 @@ func _build() -> void:
 	heat_bar.max_value = 100.0
 	heat_bar.value = 0.0
 	vitals.add_child(heat_bar)
+	stamina_bar = ProgressBar.new()
+	stamina_bar.custom_minimum_size = Vector2(300, 6)
+	stamina_bar.show_percentage = false
+	stamina_bar.max_value = 100.0
+	stamina_bar.value = 100.0
+	vitals.add_child(stamina_bar)
 	obj_label = Label.new()
 	obj_label.add_theme_font_size_override("font_size", 14)
 	obj_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.6))
@@ -144,7 +151,7 @@ func _build() -> void:
 	add_child(announce_label)
 	# controls hint bottom-right
 	var hint := Label.new()
-	hint.text = "WASD move (screen) · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot · F hack"
+	hint.text = "WASD move (screen) · LMB fire · SPACE dash · TAB swap · R reload · Q/E programs · 1/2 loot · F hack"
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.position = Vector2(-660, -30)
 	hint.add_theme_font_size_override("font_size", 13)
@@ -182,14 +189,21 @@ func _process(delta: float) -> void:
 	if dungeon != null and dungeon.player != null and is_instance_valid(dungeon.player):
 		var wp: Dictionary = dungeon.player.weapon
 		var ws: Dictionary = RunManager.loadout.get("secondary", {})
-		weapon_label.text = "▶ %s (%.0f)  |  %s (%.0f)  [TAB]" % [
-			String(wp.get("name", "?")), float(wp.get("dps", 0)),
+		var ammo_txt := ""
+		if dungeon.player.held_kind == "gun":
+			ammo_txt = " %d/%d" % [int(wp.get("ammo", 0)), dungeon.player.mag_size()]
+			if dungeon.player.reloading:
+				ammo_txt += " ⟳"
+		weapon_label.text = "▶ %s%s (%.0f)  |  %s (%.0f)  [TAB]" % [
+			String(wp.get("name", "?")), ammo_txt, float(wp.get("dps", 0)),
 			String(ws.get("name", "—")), float(ws.get("dps", 0))]
 	# program cooldown labels
 	if dungeon != null and dungeon.player != null and is_instance_valid(dungeon.player):
 		var p: WCPlayer = dungeon.player
 		heat_bar.value = p.heat
 		heat_bar.modulate = Color(1.0, 0.3, 0.15) if p.overheated else Color.WHITE
+		stamina_bar.max_value = p.max_stamina()
+		stamina_bar.value = p.stamina
 		_update_prog_labels(p)
 
 func _update_prog_labels(p: WCPlayer) -> void:

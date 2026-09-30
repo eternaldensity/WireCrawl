@@ -62,10 +62,11 @@ below. Autoloads boot in the order listed in `project.godot`.
   Kill-streak callouts (double/rampage/overdrive) with energy-free fanfare.
 
 ## 9. Entities (`scripts/entities/`)
-- `WCPlayer`: input → move/aim/fire/dash/programs/hack; heat-gated trigger
-  (primary 30-shot / heavy 8-shot mags, 1.2s overheat lock); reads RunManager
-  for vitals, LootFactory item for damage; visible blade/gun models rebuilt
-  on swap/equip; X-ray outline; writes via RunManager/SynergyEngine/Dungeon.
+- `WCPlayer`: input → move/aim/fire/dash/programs/hack/reload; ammo mags with
+  timed reloads (R / auto), melee stamina with delayed regen; heat-gated
+  trigger; reads RunManager for vitals, LootFactory item for damage; visible
+  blade/gun models rebuilt on swap/equip; X-ray outline; writes via
+  RunManager/SynergyEngine/Dungeon.
 - `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`) with LoS-gated
   attacks, shooter strafing, dasher telegraphs, statuses, floating HP bars,
   synergy event resolution, `make_elite()` champions, procedural rig models

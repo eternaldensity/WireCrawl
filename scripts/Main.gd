@@ -57,6 +57,7 @@ func _ensure_input() -> void:
 	_add_key("equip_1", [KEY_1])
 	_add_key("equip_2", [KEY_2])
 	_add_key("interact", [KEY_F])
+	_add_key("reload", [KEY_R])
 	if not InputMap.has_action("swap_weapon"):
 		InputMap.add_action("swap_weapon")
 		var tab := InputEventKey.new()
@@ -301,7 +302,7 @@ func _tab_settings() -> void:
 		SaveSystem.profile["settings"]["screenshake"] = on
 		SaveSystem.save_profile())
 	tab_content.add_child(WCTheme.section("CONTROLS", NEON_CYAN))
-	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · F hack terminal · ESC pause", 13))
+	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · R reload · Q / E programs · 1 / 2 loot choice · F hack terminal · ESC pause", 13))
 	tab_content.add_child(WCTheme.section("DISPLAY", NEON_CYAN))
 	var fs := CheckButton.new()
 	fs.text = "Fullscreen (fixes editor-embed mouse offset; restart applies cleanly)"
@@ -331,6 +332,7 @@ func _origin_card(oid: String) -> Control:
 	var p := _panel(o["color"] if sel_origin != oid else Color.WHITE)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
 	var name := _label("%s  Lv%d" % [o["name"], SaveSystem.origin_level(oid)], o["color"], 16)
 	v.add_child(name)
@@ -367,6 +369,7 @@ func _program_picker(slot: int) -> Control:
 	var p := _panel(NEON_PINK)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
 	v.add_child(_label("SLOT %s" % ("Q" if slot == 1 else "E"), NEON_PINK, 13))
 	var cur: String = sel_prog1 if slot == 1 else sel_prog2

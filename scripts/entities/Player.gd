@@ -22,6 +22,11 @@ var heat := 0.0
 var overheated := false
 var overheat_t := 0.0
 var shots_fired := 0
+var reloading := false
+var reload_t := 0.0
+var stamina := 100.0
+var stamina_delay := 0.0
+var deny_t := 0.0
 var cloak := 0.0
 var alive := true
 var statuses := {}
@@ -204,6 +209,7 @@ func _apply_run_stats() -> void:
 	programs = RunManager.loadout.get("programs", ["blink"])
 	if programs.size() < 3:
 		programs = (programs + ["blink", "blink", "blink"]).slice(0, 3)
+	stamina = max_stamina()
 	_rebuild_held()
 
 func stat_rate_mult() -> float:
@@ -245,6 +251,16 @@ func _physics_process(delta: float) -> void:
 			heat = 50.0
 	else:
 		heat = maxf(0.0, heat - 40.0 * delta)
+	if reloading:
+		reload_t -= delta
+		if reload_t <= 0.0:
+			reloading = false
+			weapon["ammo"] = mag_size()
+			AudioDirector.play("pickup", 1.5)
+	stamina_delay -= delta
+	deny_t -= delta
+	if stamina_delay <= 0.0:
+		stamina = minf(max_stamina(), stamina + stamina_regen() * delta)
 	if dash_time > 0.0:
 		dash_time -= delta
 	for k in prog_cds.keys():
@@ -279,6 +295,8 @@ func _physics_process(delta: float) -> void:
 		cast_program(0)
 	if Input.is_action_just_pressed("program_2"):
 		cast_program(1)
+	if InputMap.has_action("reload") and Input.is_action_just_pressed("reload"):
+		start_reload()
 	if InputMap.has_action("interact") and Input.is_action_just_pressed("interact"):
 		if dungeon != null and dungeon.has_method("try_hack"):
 			dungeon.try_hack()
@@ -331,11 +349,28 @@ func _update_aim() -> void:
 				aim_dir = d.normalized()
 
 func try_fire() -> void:
-	if overheated:
+	if overheated or reloading:
 		return
+	var is_melee := not bool(wbase.get("projectile", true))
+	if is_melee:
+		if stamina < GameDB.MELEE_STAMINA_COST:
+			_deny("WINDED")
+			return
+	else:
+		if int(weapon.get("ammo", 1)) <= 0:
+			start_reload()
+			_deny("RELOADING")
+			return
 	var rate: float = float(wbase.get("rate", 4.0)) * stat_rate_mult()
 	fire_cd = 1.0 / rate
 	shots_fired += 1
+	if is_melee:
+		stamina = maxf(0.0, stamina - GameDB.MELEE_STAMINA_COST)
+		stamina_delay = 0.6
+	else:
+		weapon["ammo"] = int(weapon.get("ammo", 1)) - 1
+		if int(weapon["ammo"]) <= 0:
+			start_reload()
 	if bool(wbase.get("projectile", true)):
 		heat += 100.0 / 30.0 if String(wbase.get("slot", "primary")) == "primary" else 100.0 / 8.0
 		if heat >= 100.0:
@@ -450,6 +485,7 @@ func swap_weapon() -> void:
 	RunManager.loadout["primary"] = sec
 	weapon = sec
 	wbase = GameDB.WEAPONS.get(String(weapon.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+	reloading = false
 	_rebuild_held()
 	fire_cd = maxf(fire_cd, 0.25)
 	AudioDirector.play("ui")
@@ -465,12 +501,46 @@ func equip_item(item: Dictionary, slot: String) -> void:
 	if slot == "primary":
 		weapon = item
 		wbase = GameDB.WEAPONS.get(String(item.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+		reloading = false
 		_rebuild_held()
 	AudioDirector.play("levelup")
 	if dungeon != null and dungeon.has_method("float_text"):
 		dungeon.float_text(global_position + Vector3(0, 2.4, 0),
 			"EQUIPPED [%s]: %s" % [slot.to_upper(), String(item.get("name", "?"))],
 			GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE))
+
+func _deny(text: String) -> void:
+	if deny_t > 0.0:
+		return
+	deny_t = 1.0
+	AudioDirector.play("ui", 0.6)
+	if dungeon != null and dungeon.has_method("float_text"):
+		dungeon.float_text(global_position + Vector3(0, 2.2, 0), text, Color(0.7, 0.72, 0.85))
+
+func max_stamina() -> float:
+	var m: float = RunManager.stamina_max
+	if _has_affix("marathon"):
+		m += 40.0
+	return m
+
+func stamina_regen() -> float:
+	var r := 35.0 * RunManager.stamina_regen_mult
+	if _has_affix("marathon"):
+		r *= 1.3
+	return r
+
+func start_reload() -> void:
+	if reloading or bool(wbase.get("projectile", true)) == false:
+		return
+	var wid := String(weapon.get("weapon_id", "smg"))
+	if int(weapon.get("ammo", 0)) >= mag_size():
+		return
+	reloading = true
+	reload_t = float(GameDB.RELOAD_TIME.get(wid, 1.5)) * RunManager.reload_mult
+	AudioDirector.play("ui", 0.8)
+
+func mag_size() -> int:
+	return int(weapon.get("mag", 30))
 
 func _trigger_overheat() -> void:
 	overheated = true

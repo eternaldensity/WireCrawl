@@ -2,6 +2,13 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.14 — ammo + stamina tactics (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.1 | Mag management + reload timing, stamina-gated melee, R reload, drum-mag/marathon affixes, Solo stamina + Techie reload identity. |
+| Usability | 9.0 | Ammo readout + reload spinner, stamina bar, card/picker spacing. |
+| **Mean** | **8.97** | Bar cleared. |
+
 ## v0.13 — breathing room (this commit)
 | Axis | Score | Notes |
 |---|---|---|

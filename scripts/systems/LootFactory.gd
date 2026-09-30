@@ -40,11 +40,16 @@ func roll_weapon(threat: int, luck := 0.0, force_id := "", force_rarity := "") -
 		pool.erase(picked)
 	var power: float = GameDB.RARITY_POWER.get(rarity, 1.0) * (1.0 + 0.12 * float(threat - 1))
 	var dps: float = float(base["dmg"]) * float(base["rate"]) * power
+	var has_big_mag := false
 	for a in affixes:
 		match String(a["id"]):
 			"overclocked": dps *= 1.45
 			"multishot": dps *= 1.55
 			"fast_hands": dps *= 1.22
+			"big_mag": has_big_mag = true
+	var mag: int = int(GameDB.MAG_SIZE.get(wid, 30))
+	if has_big_mag:
+		mag = int(mag * 1.5)
 	var item := {
 		"key": "w_%d_%d" % [Time.get_ticks_msec(), rng.randi()],
 		"kind": "weapon", "weapon_id": wid,
@@ -52,6 +57,7 @@ func roll_weapon(threat: int, luck := 0.0, force_id := "", force_rarity := "") -
 		"rarity": rarity, "power": snappedf(power, 0.01),
 		"dps": snappedf(dps, 0.1),
 		"affixes": affixes, "threat": threat,
+		"mag": mag, "ammo": mag,
 	}
 	return item
 

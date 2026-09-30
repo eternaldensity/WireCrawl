@@ -3,7 +3,7 @@ extends Node
 ## Weapons, armor sets, programs, origins, enemies, contracts, synergies, tuning.
 ## Pure data + balance formulas. No scene-tree dependencies.
 
-const VERSION := "0.13"
+const VERSION := "0.14"
 
 const DAMAGE_TYPES := ["kinetic", "thermal", "volt", "cryo", "toxic", "void"]
 const DAMAGE_COLORS := {
@@ -26,12 +26,18 @@ const RARITY_COLORS := {
 const RARITY_WEIGHT_BASE := {"common": 52.0, "rare": 28.0, "epic": 13.0, "legendary": 5.5, "mythic": 1.5}
 const RARITY_POWER := {"common": 1.0, "rare": 1.18, "epic": 1.42, "legendary": 1.75, "mythic": 2.2}
 
+const MELEE_STAMINA_COST := 25.0
+const MAG_SIZE := {"smg": 40, "scattergun": 6, "railspike": 5, "plasma": 12,
+	"thumper": 4, "cryo": 30, "toxin": 20}
+const RELOAD_TIME := {"smg": 1.3, "scattergun": 1.8, "railspike": 1.6, "plasma": 1.5,
+	"thumper": 2.0, "cryo": 1.3, "toxin": 1.6}
+
 const ORIGINS := {
 	"solo": {
 		"name": "Street Solo",
-		"desc": "Chrome muscle. +25 max HP, +15% melee damage. Starts with Scattergun + Katana.",
+		"desc": "Chrome muscle. +25 max HP, +15% melee damage, +30 stamina. Starts with Scattergun + Katana.",
 		"hp": 125, "energy": 100, "speed": 7.2,
-		"mods": {"max_hp": 25, "melee_mult": 1.15, "lifesteal": 0.02},
+		"mods": {"max_hp": 25, "melee_mult": 1.15, "lifesteal": 0.02, "stamina_max": 30, "stamina_regen": 1.3},
 		"program": "overdrive", "weapon": "katana",
 		"color": Color(1.0, 0.16, 0.43),
 	},
@@ -45,9 +51,9 @@ const ORIGINS := {
 	},
 	"techie": {
 		"name": "Techie",
-		"desc": "Turret tinkerer. Ally damage +40%, +10 armor. Starts with ICE Turret.",
+		"desc": "Turret tinkerer. Ally damage +40%, +10 armor, 20% faster reloads. Starts with ICE Turret.",
 		"hp": 110, "energy": 110, "speed": 6.8,
-		"mods": {"armor": 10, "ally_mult": 1.4, "thorns": 4.0},
+		"mods": {"armor": 10, "ally_mult": 1.4, "thorns": 4.0, "reload_mult": 0.8},
 		"program": "ice_turret", "weapon": "railspike",
 		"color": Color(0.976, 0.941, 0.008),
 	},
@@ -119,6 +125,10 @@ const AFFIXES := [
 		"tags": ["defense"], "weight": 7.0},
 	{"id": "haste_kill", "name": "Kill Haste", "desc": "+35% speed for 3s on kill",
 		"tags": ["speed"], "weight": 6.0},
+	{"id": "big_mag", "name": "Drum Mag", "desc": "+50% magazine size",
+		"tags": ["ammo"], "weight": 6.0},
+	{"id": "marathon", "name": "Marathon Weave", "desc": "+40 max stamina, +30% stamina regen",
+		"tags": ["stamina"], "weight": 6.0},
 ]
 
 const ARMOR_SETS := {

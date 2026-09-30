@@ -34,6 +34,7 @@ func _ensure_test_input() -> void:
 	_add_test_key("equip_1", [KEY_1])
 	_add_test_key("equip_2", [KEY_2])
 	_add_test_key("interact", [KEY_F])
+	_add_test_key("reload", [KEY_R])
 	if not InputMap.has_action("fire"):
 		InputMap.add_action("fire")
 
@@ -254,6 +255,35 @@ func _test_dungeon_boot() -> void:
 	dng.player.try_fire()
 	_check(dng.player.shots_fired == shots1, "overheat_locks_fire",
 		"(shots %d -> %d)" % [shots0, shots1])
+	# ammo: last round triggers auto-reload, lock clears with full mag
+	dng.player.overheated = false
+	dng.player.overheat_t = 0.0
+	dng.player.heat = 0.0
+	dng.player.reloading = false
+	dng.player.weapon["ammo"] = 1
+	dng.player.fire_cd = 0.0
+	var shots2: int = dng.player.shots_fired
+	dng.player.try_fire()
+	_check(dng.player.reloading, "empty_triggers_reload")
+	_check(dng.player.shots_fired == shots2 + 1, "last_round_fires")
+	dng.player.reload_t = 0.01
+	for _i in 4:
+		await get_tree().physics_frame
+	_check(not dng.player.reloading and int(dng.player.weapon["ammo"]) == dng.player.mag_size(),
+		"reload_refills", "(ammo=%s)" % str(dng.player.weapon.get("ammo", "?")))
+	# stamina: winded swings denied, fresh swings spend
+	var kat: Dictionary = LootFactory.roll_weapon(1, 0.0, "katana", "epic")
+	dng.player.equip_item(kat, "primary")
+	dng.player.stamina = 0.0
+	dng.player.fire_cd = 0.0
+	var shots3: int = dng.player.shots_fired
+	dng.player.try_fire()
+	_check(dng.player.shots_fired == shots3, "winded_denies_swing")
+	dng.player.stamina = 100.0
+	dng.player.fire_cd = 0.0
+	dng.player.try_fire()
+	_check(dng.player.shots_fired == shots3 + 1 and dng.player.stamina < 100.0, "swing_spends_stamina",
+		"(stamina=%.0f)" % dng.player.stamina)
 	# loot queue: two offers while panel busy keeps both
 	var hud := WCHUD.new()
 	add_child(hud)

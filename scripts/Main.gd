@@ -6,6 +6,7 @@ extends Node
 var screen: Control
 var fade_layer: CanvasLayer
 var fade_rect: ColorRect
+var fade_in_called := false
 var dungeon: WCDungeon = null
 var hud: WCHUD = null
 var sel_origin := "solo"
@@ -38,6 +39,7 @@ func _build_fader() -> void:
 func fade_in(dur := 0.6) -> void:
 	if fade_rect == null:
 		return
+	fade_in_called = true
 	fade_rect.color.a = 1.0
 	var tw := fade_rect.create_tween()
 	tw.tween_property(fade_rect, "color:a", 0.0, dur)
@@ -159,6 +161,7 @@ func show_title() -> void:
 	tab_content.add_theme_constant_override("separation", 12)
 	scroll.add_child(tab_content)
 	_refresh_title()
+	fade_in(0.4)
 
 func _refresh_title() -> void:
 	if screen == null:

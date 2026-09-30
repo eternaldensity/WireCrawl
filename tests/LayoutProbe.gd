@@ -26,6 +26,8 @@ func _ready() -> void:
 		_dump_tab(main_scene, t, vp)
 	await _test_clicks(main_scene)
 	await _test_hit(main_scene)
+	_nav_check(main_scene.fade_in_called and main_scene.fade_rect != null,
+		"title_fade_wired", "(fade requested on title, no permanent black)")
 	print("---- PROBE DONE: %d passed, %d failed ----" % [passes, failures])
 	get_tree().quit(1 if failures > 0 else 0)
 

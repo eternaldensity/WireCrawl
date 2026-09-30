@@ -27,8 +27,11 @@ var programs: Array = ["blink"]
 var dungeon = null
 var _t := 0.0
 var _body: MeshInstance3D
+var _rig: Node3D
+var _shell: Array = []
 var _mat: StandardMaterial3D
 var _gun: MeshInstance3D
+var _gun_tip: MeshInstance3D
 var camera: Camera3D
 
 func _ready() -> void:
@@ -48,33 +51,38 @@ func _ready() -> void:
 
 func _build_visual() -> void:
 	var tint: Color = GameDB.ORIGINS.get(RunManager.origin, {}).get("color", Color.CYAN)
+	_rig = Node3D.new()
+	add_child(_rig)
 	_mat = StandardMaterial3D.new()
 	_mat.albedo_color = Color(0.08, 0.08, 0.12)
 	_mat.emission_enabled = true
 	_mat.emission = tint
 	_mat.emission_energy_multiplier = 1.2
-	_body = MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.8, 1.4, 0.55)
-	_body.mesh = bm
-	_body.position.y = 0.8
-	_body.material_override = _mat
-	add_child(_body)
-	# visor
-	var visor := MeshInstance3D.new()
-	var vm := BoxMesh.new()
-	vm.size = Vector3(0.55, 0.12, 0.05)
-	visor.mesh = vm
-	var vmat := StandardMaterial3D.new()
-	vmat.albedo_color = tint
-	vmat.emission_enabled = true
-	vmat.emission = tint
-	vmat.emission_energy_multiplier = 5.0
-	vmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visor.material_override = vmat
-	visor.position = Vector3(0, 1.2, 0.3)
-	add_child(visor)
-	# gun block
+	_shell = []
+	_body = _pbox(Vector3(0.8, 1.0, 0.55), Vector3(0, 0.95, 0), _mat)
+	# jacket skirt
+	_pbox(Vector3(0.9, 0.35, 0.65), Vector3(0, 0.35, 0), _mat)
+	# chest light core
+	var core_mat := StandardMaterial3D.new()
+	core_mat.albedo_color = tint
+	core_mat.emission_enabled = true
+	core_mat.emission = tint
+	core_mat.emission_energy_multiplier = 4.0
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_pbox(Vector3(0.2, 0.3, 0.06), Vector3(0, 1.15, 0.29), core_mat)
+	# head + visor
+	_pbox(Vector3(0.45, 0.4, 0.45), Vector3(0, 1.7, 0), _mat)
+	var visor_mat := StandardMaterial3D.new()
+	visor_mat.albedo_color = tint
+	visor_mat.emission_enabled = true
+	visor_mat.emission = tint
+	visor_mat.emission_energy_multiplier = 5.0
+	visor_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_pbox(Vector3(0.5, 0.12, 0.06), Vector3(0, 1.72, 0.24), visor_mat)
+	# shoulder lamp (origin color beacon)
+	_pbox(Vector3(0.22, 0.18, 0.3), Vector3(-0.5, 1.45, 0), visor_mat)
+	_pbox(Vector3(0.22, 0.3, 0.3), Vector3(0.5, 1.4, 0), _mat)
+	# gun with glow tip
 	_gun = MeshInstance3D.new()
 	var gm := BoxMesh.new()
 	gm.size = Vector3(0.16, 0.16, 0.9)
@@ -86,7 +94,19 @@ func _build_visual() -> void:
 	gmat.emission_energy_multiplier = 2.0
 	_gun.material_override = gmat
 	_gun.position = Vector3(0.45, 0.9, 0.3)
-	add_child(_gun)
+	_rig.add_child(_gun)
+	_gun_tip = _pbox(Vector3(0.18, 0.18, 0.12), Vector3(0.45, 0.9, 0.78), core_mat)
+
+func _pbox(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = pos
+	_rig.add_child(mi)
+	_shell.append(mi)
+	return mi
 
 func _apply_run_stats() -> void:
 	move_speed = float(GameDB.ORIGINS.get(RunManager.origin, {}).get("speed", 7.0)) * RunManager.speed_mult
@@ -170,8 +190,12 @@ func _physics_process(delta: float) -> void:
 		cast_program(1)
 	if Input.is_action_pressed("fire") and fire_cd <= 0.0:
 		try_fire()
-	# cloak visual
-	_body.transparency = 0.65 if cloak > 0.0 else 0.0
+	# cloak visual + walk bob
+	var cloak_a := 0.65 if cloak > 0.0 else 0.0
+	for part in _shell:
+		(part as MeshInstance3D).transparency = cloak_a
+	var stride: float = clampf(Vector2(velocity.x, velocity.z).length() / 7.0, 0.0, 1.5)
+	_rig.position.y = absf(sin(_t * 9.0)) * 0.07 * stride
 
 func _has_affix(id: String) -> bool:
 	for a in weapon.get("affixes", []):

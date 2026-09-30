@@ -4,6 +4,8 @@ extends Node
 ## Pause menu, death/victory screens. All UI built in code, neon-styled.
 
 var screen: Control
+var fade_layer: CanvasLayer
+var fade_rect: ColorRect
 var dungeon: WCDungeon = null
 var hud: WCHUD = null
 var sel_origin := "solo"
@@ -20,7 +22,25 @@ const BG := Color(0.015, 0.015, 0.035)
 func _ready() -> void:
 	_ensure_input()
 	_apply_volumes()
+	_build_fader()
 	show_title()
+
+func _build_fader() -> void:
+	fade_layer = CanvasLayer.new()
+	fade_layer.layer = 100
+	add_child(fade_layer)
+	fade_rect = ColorRect.new()
+	fade_rect.color = Color(0, 0, 0, 1)
+	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade_layer.add_child(fade_rect)
+
+func fade_in(dur := 0.6) -> void:
+	if fade_rect == null:
+		return
+	fade_rect.color.a = 1.0
+	var tw := fade_rect.create_tween()
+	tw.tween_property(fade_rect, "color:a", 0.0, dur)
 
 func _ensure_input() -> void:
 	_add_key("move_fwd", [KEY_W, KEY_UP])
@@ -488,6 +508,7 @@ func _wire_dungeon() -> void:
 		RunManager.run_ended.connect(_on_run_ended)
 	hud.announce(String(GameDB.CONTRACTS[clampi(sel_contract, 0, 5)]["name"]) + " — " +
 		String(GameDB.CONTRACTS[clampi(sel_contract, 0, 5)]["sector"]), NEON_CYAN)
+	fade_in()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and dungeon != null:

@@ -30,6 +30,8 @@ var clear_timer := 0.0
 var float_layer: Node3D
 var fx_layer: Node3D
 var _slowmo_token := 0
+var _streak := 0
+var _last_kill_t := -99.0
 
 func setup(p_contract: Dictionary) -> void:
 	contract = p_contract
@@ -363,6 +365,41 @@ func _build_props(ox: float, oz: float) -> void:
 				if tiles[pc.y * w + pc.x] == DungeonGen.TILE_VOID:
 					continue
 				_pillar(props, _cell_to_world(pc), rng)
+	_floor_dressing(props, rng)
+
+func _floor_dressing(parent: Node, rng: RandomNumberGenerator) -> void:
+	## Flat glow inlays on the floor: drains, hazard strips, data rings.
+	var tiles: PackedByteArray = layout["tiles"]
+	var w: int = layout["w"]
+	var h: int = layout["h"]
+	var cols := [Color(0.02, 0.85, 0.91), Color(1.0, 0.16, 0.43), Color(0.976, 0.941, 0.008)]
+	for _i in 30:
+		var cx := rng.randi_range(1, w - 2)
+		var cy := rng.randi_range(1, h - 2)
+		if tiles[cy * w + cx] == DungeonGen.TILE_VOID:
+			continue
+		var col: Color = cols[rng.randi() % cols.size()]
+		var quad := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		var kind := rng.randi() % 3
+		if kind == 0:
+			qm.size = Vector2(1.6, 1.6)
+		elif kind == 1:
+			qm.size = Vector2(3.2, 0.35)
+		else:
+			qm.size = Vector2(0.5, 2.4)
+		quad.mesh = qm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = col
+		mat.emission_enabled = true
+		mat.emission = col
+		mat.emission_energy_multiplier = rng.randf_range(1.2, 2.4)
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		quad.material_override = mat
+		quad.rotation.x = -PI / 2.0
+		quad.rotation.z = rng.randf() * PI if kind != 0 else 0.0
+		quad.position = _cell_to_world(Vector2i(cx, cy)) + Vector3(rng.randf_range(-1, 1), 0.03, rng.randf_range(-1, 1))
+		parent.add_child(quad)
 
 func _pillar(parent: Node, pos: Vector3, rng: RandomNumberGenerator) -> void:
 	var pillar := MeshInstance3D.new()
@@ -636,6 +673,25 @@ func _build_camera() -> void:
 func on_enemy_died(e: WCEnemy) -> void:
 	enemies_alive = maxi(0, enemies_alive - 1)
 	hitstop(0.15, 0.35 if e.is_boss else 0.05)
+	# kill streak callouts
+	if clear_timer - _last_kill_t < 3.0:
+		_streak += 1
+	else:
+		_streak = 1
+	_last_kill_t = clear_timer
+	var callout := ""
+	match _streak:
+		2: callout = "DOUBLE KILL!"
+		3: callout = "TRIPLE KILL!"
+		4: callout = "RAMPAGE!"
+		5: callout = "OVERDRIVE x5!"
+	if _streak > 5:
+		callout = "OVERDRIVE x%d!" % _streak
+	if callout != "" and player != null and is_instance_valid(player):
+		float_text(player.global_position + Vector3(0, 3.0, 0), callout,
+			Color(0.976, 0.941, 0.008))
+		if _streak >= 3:
+			AudioDirector.play("synergy", 1.2)
 	RunManager.register_kill({"name": e.data.get("name", "?"), "xp": e.xp, "creds": e.creds})
 	cam_shake = minf(1.2, cam_shake + (0.8 if e.is_boss else 0.25))
 	spawn_blast_fx(e.global_position + Vector3(0, 1, 0), 1.6, e.data.get("color", Color.RED))

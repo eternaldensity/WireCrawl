@@ -2,6 +2,16 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.6 — presentation pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 8.7 | Kill streaks, readable silhouettes. |
+| Usability | 8.7 | Objective tracker (exit distance + hostiles + boss gate), loot UPGRADE verdicts, run fades. |
+| Layout | 8.6 | Floor glow inlays aid sector readability. |
+| Content | 8.7 | Unchanged systems. |
+| Visuals | 9.0 | Procedural rigs per archetype, locomotion anim, orbiting shards, dressed floors, detailed player rig. |
+| **Mean** | **8.74** | Bar cleared. |
+
 ## v0.5.6 — editor-embed offset fix (this commit)
 | Axis | Score | Notes |
 |---|---|---|

@@ -30,6 +30,8 @@ var dead := false
 var elite := false
 var _t := 0.0
 var _body: MeshInstance3D
+var _rig: Node3D
+var _shards: Array = []
 var _ring: MeshInstance3D
 var _mat: StandardMaterial3D
 var _base_y := 0.0
@@ -71,41 +73,117 @@ func _ready() -> void:
 	_build_visual(sc)
 	target = get_tree().get_first_node_in_group("player")
 
+func _glow(col: Color, energy := 3.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.emission_enabled = true
+	m.emission = col
+	m.emission_energy_multiplier = energy
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return m
+
+func _armor(col: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.05, 0.05, 0.09)
+	m.emission_enabled = true
+	m.emission = col
+	m.emission_energy_multiplier = 0.9
+	m.metallic = 0.75
+	m.roughness = 0.35
+	return m
+
+func _box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = pos
+	_rig.add_child(mi)
+	return mi
+
 func _build_visual(sc: float) -> void:
 	var col: Color = data.get("color", Color.RED)
-	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = col.darkened(0.55)
-	_mat.emission_enabled = true
-	_mat.emission = col
-	_mat.emission_energy_multiplier = 1.6
-	_body = MeshInstance3D.new()
+	_mat = _armor(col)
+	_rig = Node3D.new()
+	add_child(_rig)
+	var glow := _glow(col, 3.2)
+	var white := _glow(Color.WHITE, 5.0)
+	var dark := _armor(col.darkened(0.25))
 	if flying:
+		# Spotter drone: hovering core + rotor ring + sensor + antenna.
+		_body = MeshInstance3D.new()
 		var sm := SphereMesh.new()
 		sm.radius = 0.45 * sc
 		sm.height = 0.7 * sc
 		_body.mesh = sm
-		_body.position.y = 1.6
+		_body.material_override = _mat
+		_body.position = Vector3(0, 1.6, 0)
+		_rig.add_child(_body)
+		var rotor := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.5 * sc
+		tm.outer_radius = 0.68 * sc
+		rotor.mesh = tm
+		rotor.material_override = glow
+		rotor.position = Vector3(0, 1.6, 0)
+		_rig.add_child(rotor)
+		var sensor := MeshInstance3D.new()
+		var ssm := SphereMesh.new()
+		ssm.radius = 0.14 * sc
+		ssm.height = 0.28 * sc
+		sensor.mesh = ssm
+		sensor.material_override = white
+		sensor.position = Vector3(0, 1.28, 0.15 * sc)
+		_rig.add_child(sensor)
+		_box(Vector3(0.06 * sc, 0.7 * sc, 0.06 * sc), Vector3(0, 2.2, 0), dark)
+		_box(Vector3(0.16 * sc, 0.16 * sc, 0.16 * sc), Vector3(0, 2.6, 0), glow)
 	else:
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.9 * sc, 1.5 * sc, 0.6 * sc)
-		_body.mesh = bm
-		_body.position.y = 0.85 * sc
-	_body.material_override = _mat
-	add_child(_body)
-	# visor eye
-	var eye := MeshInstance3D.new()
-	var em := BoxMesh.new()
-	em.size = Vector3(0.6 * sc, 0.12 * sc, 0.05)
-	eye.mesh = em
-	var eym := StandardMaterial3D.new()
-	eym.albedo_color = Color.WHITE
-	eym.emission_enabled = true
-	eym.emission = Color.WHITE
-	eym.emission_energy_multiplier = 5.0
-	eym.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	eye.material_override = eym
-	eye.position = Vector3(0, (1.25 if not flying else 1.6) * sc, 0.32 * sc)
-	add_child(eye)
+		# Humanoid base: torso + head + visor.
+		var bulky := 1.35 if (behavior == "tank" or is_boss) else 1.0
+		var slim := 0.75 if behavior == "dasher" else 1.0
+		_body = _box(Vector3(0.9 * sc * slim * bulky, 1.1 * sc, 0.6 * sc * bulky),
+			Vector3(0, 1.0 * sc, 0), _mat)
+		_box(Vector3(0.5 * sc, 0.42 * sc, 0.5 * sc), Vector3(0, 1.78 * sc, 0), dark)
+		_box(Vector3(0.56 * sc * slim, 0.11 * sc, 0.06), Vector3(0, 1.8 * sc, 0.26 * sc), white)
+		_box(Vector3(0.7 * sc, 0.09 * sc, 0.62 * sc), Vector3(0, 0.52 * sc, 0), glow)
+		match key:
+			"punk":
+				_box(Vector3(0.1 * sc, 0.45 * sc, 0.65 * sc), Vector3(0, 2.2 * sc, 0), glow)
+				_box(Vector3(0.22 * sc, 0.8 * sc, 0.22 * sc), Vector3(-0.58 * sc, 1.0 * sc, 0), dark)
+				_box(Vector3(0.22 * sc, 0.8 * sc, 0.22 * sc), Vector3(0.58 * sc, 1.0 * sc, 0), dark)
+			"razor":
+				var bl := _box(Vector3(0.08 * sc, 0.95 * sc, 0.28 * sc), Vector3(-0.34 * sc, 1.35 * sc, -0.3 * sc), glow)
+				bl.rotation.z = 0.5
+				var br := _box(Vector3(0.08 * sc, 0.95 * sc, 0.28 * sc), Vector3(0.34 * sc, 1.35 * sc, -0.3 * sc), glow)
+				br.rotation.z = -0.5
+			"hexer":
+				var robe := MeshInstance3D.new()
+				var cm := CylinderMesh.new()
+				cm.top_radius = 0.3 * sc
+				cm.bottom_radius = 0.75 * sc
+				cm.height = 1.7 * sc
+				robe.mesh = cm
+				robe.material_override = dark
+				robe.position = Vector3(0, 0.85 * sc, 0)
+				_rig.add_child(robe)
+				for si in 2:
+					var shard := _box(Vector3(0.18 * sc, 0.18 * sc, 0.18 * sc),
+						Vector3(1.0, 1.4, 0), _glow(Color(0.75, 0.35, 1.0), 4.0))
+					_shards.append(shard)
+			"enforcer", "brute":
+				_box(Vector3(0.5 * sc, 0.35 * sc, 0.6 * sc), Vector3(-0.88 * sc, 1.62 * sc, 0), dark)
+				_box(Vector3(0.5 * sc, 0.35 * sc, 0.6 * sc), Vector3(0.88 * sc, 1.62 * sc, 0), dark)
+				_box(Vector3(0.4 * sc, 0.5 * sc, 0.1), Vector3(0, 1.15 * sc, 0.42 * sc * bulky), glow)
+				_box(Vector3(0.3 * sc, 0.7 * sc, 0.3 * sc), Vector3(-0.62 * sc, 0.6 * sc, 0), dark)
+				_box(Vector3(0.3 * sc, 0.7 * sc, 0.3 * sc), Vector3(0.62 * sc, 0.6 * sc, 0), dark)
+			_:
+				if is_boss:
+					for spi in 3:
+						_box(Vector3(0.14 * sc, 0.6 * sc, 0.14 * sc),
+							Vector3((float(spi) - 1.0) * 0.35 * sc, 2.25 * sc, -0.1 * sc), glow)
+					_box(Vector3(0.5 * sc, 0.6 * sc, 0.12), Vector3(0, 1.2 * sc, 0.45 * sc * bulky),
+						_glow(Color(1.0, 0.9, 0.2), 4.5))
 	# ground status ring
 	_ring = MeshInstance3D.new()
 	var tm := TorusMesh.new()
@@ -226,9 +304,18 @@ func _physics_process(delta: float) -> void:
 	if dir.length() > 0.01:
 		var yaw := atan2(-dir.x, -dir.z)
 		rotation.y = lerp_angle(rotation.y, yaw, 10.0 * delta)
-	# hover / bob
+	# procedural locomotion: bob + sway (+ shard orbit, hover)
+	var move_amount: float = clampf(Vector2(velocity.x, velocity.z).length() / maxf(speed, 0.1), 0.0, 1.5)
 	if flying:
-		_body.position.y = 1.6 + sin(_t * 4.0) * 0.15
+		_rig.position.y = sin(_t * 4.0) * 0.15
+	else:
+		_rig.position.y = absf(sin(_t * (5.0 + 3.0 * move_amount))) * 0.09 * move_amount
+		_rig.rotation.z = sin(_t * 3.0) * 0.03
+	if not _shards.is_empty():
+		for si in _shards.size():
+			var s := _shards[si] as MeshInstance3D
+			var a := _t * 2.2 + TAU * float(si) / float(_shards.size())
+			s.position = Vector3(cos(a) * 1.1, 1.4 + sin(_t * 3.0 + float(si)) * 0.15, sin(a) * 1.1)
 	_update_ring()
 
 func _boss_vel(dir: Vector3, dist: float, slowed: float) -> Vector3:
@@ -369,7 +456,7 @@ func _flash() -> void:
 	if _mat != null:
 		_mat.emission_energy_multiplier = 4.0
 		var tw := create_tween()
-		tw.tween_property(_mat, "emission_energy_multiplier", 1.6, 0.12)
+		tw.tween_property(_mat, "emission_energy_multiplier", 0.9, 0.12)
 
 func _update_ring() -> void:
 	if _ring == null:
@@ -400,6 +487,6 @@ func _die() -> void:
 	# death pop
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(_body, "scale", Vector3.ZERO, 0.25)
-	tw.tween_property(_body, "position:y", 2.0, 0.25)
+	tw.tween_property(_rig, "scale", Vector3.ZERO, 0.25)
+	tw.tween_property(_rig, "position:y", 2.0, 0.25)
 	tw.chain().tween_callback(queue_free)

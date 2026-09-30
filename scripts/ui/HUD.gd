@@ -13,6 +13,8 @@ var minimap: Control
 var boss_bar: ProgressBar
 var boss_label: Label
 var boss_box: Control
+var _obj_base := "Reach the EXIT uplink"
+var _obj_t := 0.0
 var prog_labels: Array = []
 var weapon_label: Label
 var loot_panel: PanelContainer
@@ -31,7 +33,7 @@ func _ready() -> void:
 	RunManager.energy_changed.connect(_on_en)
 	RunManager.kill_confirmed.connect(_on_kill)
 	RunManager.loot_dropped.connect(_on_loot)
-	RunManager.objective_changed.connect(func(t): obj_label.text = "◈ " + t)
+	RunManager.objective_changed.connect(func(t): _obj_base = t)
 	RunManager.leveled_up.connect(func(lv): announce("LEVEL UP — %d" % lv, Color(0.976, 0.941, 0.008)))
 
 func _panel_style(border: Color) -> StyleBoxFlat:
@@ -142,6 +144,11 @@ func _process(delta: float) -> void:
 		_announce_t -= delta
 		if _announce_t <= 0.0:
 			announce_label.text = ""
+	# objective tracker: distance to exit + foes remaining
+	_obj_t -= delta
+	if _obj_t <= 0.0:
+		_obj_t = 0.25
+		_refresh_objective()
 	if dungeon != null and dungeon.boss != null and is_instance_valid(dungeon.boss):
 		boss_box.visible = not (dungeon.boss as WCEnemy).dead
 		boss_label.text = "☠ " + String((dungeon.boss as WCEnemy).data.get("name", "BOSS"))
@@ -213,9 +220,12 @@ func show_loot(item: Dictionary) -> void:
 	var col: Color = GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE)
 	var cur1: Dictionary = RunManager.loadout.get("primary", {})
 	var cur2: Dictionary = RunManager.loadout.get("secondary", {})
-	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color]\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
+	var ndps := float(item.get("dps", 0))
+	var best := maxf(float(cur1.get("dps", 0)), float(cur2.get("dps", 0)))
+	var verdict := "[color=#3dff66]UPGRADE[/color]" if ndps > best * 1.05 else "[color=#ff5f5f]SIDE-GRADE[/color]"
+	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color] %s\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
 		col.to_html(false), String(item.get("name", "?")),
-		String(item.get("rarity", "")).capitalize(), float(item.get("dps", 0)),
+		String(item.get("rarity", "")).capitalize(), ndps, verdict,
 		String(cur1.get("name", "—")), float(cur1.get("dps", 0)),
 		String(cur2.get("name", "—")), float(cur2.get("dps", 0))]
 	loot_panel.visible = true
@@ -237,6 +247,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("equip_2"):
 		choose_loot("secondary")
 		get_viewport().set_input_as_handled()
+
+func _refresh_objective() -> void:
+	if dungeon == null or dungeon.player == null or not is_instance_valid(dungeon.player):
+		obj_label.text = "◈ " + _obj_base
+		return
+	var d: float = dungeon.player.global_position.distance_to(dungeon.exit_pos)
+	var foes := get_tree().get_nodes_in_group("enemies").size()
+	var gate := ""
+	if RunManager.boss_spawned and not RunManager.boss_dead:
+		gate = " · ☠ BOSS FIRST"
+	obj_label.text = "◈ %s — EXIT %dm · %d hostiles%s" % [_obj_base, int(d), foes, gate]
 
 func announce(text: String, color := Color.WHITE) -> void:
 	announce_label.text = text

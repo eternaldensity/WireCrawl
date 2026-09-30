@@ -53,13 +53,15 @@ below. Autoloads boot in the order listed in `project.godot`.
   spawn_blast_fx, spawn_flash_fx, spawn_slash_fx, spawn_beam_fx`; program AoE: `deploy_turret, summon_hound, blackout_blast,
   system_shock`; flow: `on_enemy_died, offer_loot, summon_adds`.
 - Signals: `room_cleared, boss_spawned, extraction_ready, loot_offered`.
+  Kill-streak callouts (double/rampage/overdrive) with energy-free fanfare.
 
 ## 9. Entities (`scripts/entities/`)
 - `WCPlayer`: input → move/aim/fire/dash/programs; reads RunManager for vitals,
   LootFactory item for damage; writes via RunManager/SynergyEngine/Dungeon.
 - `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`), statuses,
-  synergy event resolution, `make_elite()` champions, drops via
-  `dungeon.on_enemy_died`.
+  synergy event resolution, `make_elite()` champions, procedural rig models
+  (mohawks, blades, rotors, robes+orbiting shards, pauldrons, boss crowns),
+  walk-bob/sway locomotion, drops via `dungeon.on_enemy_died`.
 - `WCProjectile`: faction-based hit resolution, pierce/splash/arc.
 - `WCPickup`: magnet + `player.collect(kind, amount, item)`.
 - `WCAlly`: turret/hound deployables scaling with program power.
@@ -70,10 +72,11 @@ below. Autoloads boot in the order listed in `project.godot`.
 - Title shell: nav rail (DEPLOY / CHROME / PROFILE / SETTINGS) + scrollable
   content; selections re-render the tab only (`_refresh_title`).
 - HUD observes RunManager signals + polls dungeon (boss bar, cooldowns, minimap,
-  dual-weapon readout). Loot choice panel (`[1]`/`[2]`/click, 14s timeout)
-  calls `WCPlayer.equip_item`.
-
-- Main owns screen flow + runtime InputMap bootstrap + pause + debrief.
+  dual-weapon readout, exit-distance + hostiles objective tracker). Loot choice
+  panel (`[1]`/`[2]`/click, 14s timeout, UPGRADE verdict) calls
+  `WCPlayer.equip_item`.
+- Main owns screen flow + runtime InputMap bootstrap + pause + debrief +
+  run-start fade transition.
 
 ## 11. Rust core (`rust_ext/`, optional)
 - Mirrors §§1,5–7 hot paths (`generate_dungeon`, `roll_rarity`, `xp_for_level`,

@@ -107,8 +107,8 @@ func _build_environment() -> void:
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-58, -30, 0)
-	sun.light_color = Color(0.55, 0.5, 0.9)
-	sun.light_energy = 0.7
+	sun.light_color = Color(0.62, 0.58, 0.95)
+	sun.light_energy = 0.95
 	sun.shadow_enabled = false
 	add_child(sun)
 	var magenta := OmniLight3D.new()
@@ -283,12 +283,12 @@ func _build_level() -> void:
 	var oz := -h * CELL / 2.0
 	# Walls: boundary runs merged per row
 	var wall_mat := StandardMaterial3D.new()
-	wall_mat.albedo_color = Color(0.03, 0.03, 0.07)
+	wall_mat.albedo_color = Color(0.035, 0.038, 0.085)
 	wall_mat.emission_enabled = true
-	wall_mat.emission = Color(1.0, 0.16, 0.43)
-	wall_mat.emission_energy_multiplier = 0.35
-	wall_mat.metallic = 0.7
-	wall_mat.roughness = 0.4
+	wall_mat.emission = Color(0.35, 0.06, 0.16)
+	wall_mat.emission_energy_multiplier = 0.06
+	wall_mat.metallic = 0.55
+	wall_mat.roughness = 0.5
 	var trim_mat := StandardMaterial3D.new()
 	trim_mat.albedo_color = Color(0.02, 0.85, 0.91)
 	trim_mat.emission_enabled = true
@@ -382,28 +382,18 @@ func _build_level() -> void:
 						if faced < 0:
 							core.rotation.y = PI
 						walls.add_child(core)
-				# conduit pipe along the run + drops every ~5 cells (varied).
-				# offset proud of the floor-facing wall face so they read.
+				# conduit pipe along the run's middle (short of the ends so it
+				# never floats across openings; drops removed — they read as
+				# sticks in open floor wherever facing flips mid-run)
 				if wlrng.randf() < 0.85:
 					var face_sign := 1.0 if faced >= 0 else -1.0
 					var pipe := MeshInstance3D.new()
 					var pm2 := BoxMesh.new()
-					pm2.size = Vector3(length - 0.4, 0.18, 0.18)
+					pm2.size = Vector3(maxf(length * 0.6 - 0.4, 1.0), 0.18, 0.18)
 					pipe.mesh = pm2
 					pipe.material_override = wall_mat
 					pipe.position = Vector3(cx, 2.95, cz + face_sign * (CELL / 2.0 + 0.12))
 					walls.add_child(pipe)
-					var drops := clampi(int(length / (CELL * 2.5)), 1, 4)
-					for di in drops:
-						var dcell := x + 1 + int(float(maxi(int(length / CELL) - 2, 1)) * (float(di) + 0.5) / float(drops))
-						var drop := MeshInstance3D.new()
-						var dm := BoxMesh.new()
-						dm.size = Vector3(0.16, 2.9, 0.16)
-						drop.mesh = dm
-						drop.material_override = run_trim
-						drop.position = Vector3(ox + (float(dcell) + 0.5) * CELL, 1.45,
-							cz + face_sign * (CELL / 2.0 + 0.12))
-						walls.add_child(drop)
 				x = x2
 			else:
 				x += 1

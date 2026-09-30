@@ -2,6 +2,12 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.19 — walls read true (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Layout | 9.0 | Wall bodies respond to light (tops vs sides separate); drops removed (read as stray sticks); shortened proud pipes. |
+| **Mean** | **9.09** | Bar cleared. |
+
 ## v0.18 — facing, flow, unstick (this commit)
 | Axis | Score | Notes |
 |---|---|---|

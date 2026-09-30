@@ -299,7 +299,7 @@ func _tab_settings() -> void:
 		SaveSystem.profile["settings"]["screenshake"] = on
 		SaveSystem.save_profile())
 	tab_content.add_child(WCTheme.section("CONTROLS", NEON_CYAN))
-	tab_content.add_child(WCTheme.body("WASD move · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · ESC pause", 13))
+	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · ESC pause", 13))
 	tab_content.add_child(WCTheme.section("DISPLAY", NEON_CYAN))
 	var fs := CheckButton.new()
 	fs.text = "Fullscreen (fixes editor-embed mouse offset; restart applies cleanly)"

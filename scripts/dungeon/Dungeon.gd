@@ -756,7 +756,7 @@ func summon_adds(pos: Vector3, count: int) -> void:
 
 func _process(delta: float) -> void:
 	if player != null and cam != null:
-		var target: Vector3 = player.global_position + Vector3(0, 14.0, 12.0)
+		var target: Vector3 = player.global_position + Vector3(6.5, 13.5, 9.5)
 		var shake_on := bool(SaveSystem.profile.get("settings", {}).get("screenshake", true))
 		if cam_shake > 0.0 and shake_on:
 			cam_shake -= delta * 3.0
@@ -774,7 +774,7 @@ func _build_camera() -> void:
 	cam.size = 26.0
 	cam.far = 200.0
 	add_child(cam)
-	cam.global_position = player.global_position + Vector3(0, 14.0, 12.0)
+	cam.global_position = player.global_position + Vector3(6.5, 13.5, 9.5)
 	cam.look_at(player.global_position, Vector3.UP)
 	player.camera = cam
 	cam.make_current()

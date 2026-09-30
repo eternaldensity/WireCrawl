@@ -68,6 +68,15 @@ func _test_dungeon_boot() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check(dng.player != null and is_instance_valid(dng.player), "dungeon_spawns_player")
+	# W maps to camera-forward (screen-up), D to camera-right
+	var camf: Vector3 = -dng.cam.global_transform.basis.z
+	camf.y = 0.0
+	var camr: Vector3 = dng.cam.global_transform.basis.x
+	camr.y = 0.0
+	_check(dng.player._screen_wish(Vector2(0, -1)).normalized().dot(camf.normalized()) > 0.99,
+		"move_w_screen_up")
+	_check(dng.player._screen_wish(Vector2(1, 0)).normalized().dot(camr.normalized()) > 0.99,
+		"move_d_screen_right")
 	_check(dng.enemies_alive > 0, "dungeon_spawns_enemies", "(%d)" % dng.enemies_alive)
 	_check(dng.cam != null, "dungeon_camera")
 	var foes := get_tree().get_nodes_in_group("enemies")

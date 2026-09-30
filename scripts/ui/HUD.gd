@@ -144,7 +144,7 @@ func _build() -> void:
 	add_child(announce_label)
 	# controls hint bottom-right
 	var hint := Label.new()
-	hint.text = "WASD move · Mouse aim · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot"
+	hint.text = "WASD move (screen) · Mouse aim · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot"
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.position = Vector2(-660, -30)
 	hint.add_theme_font_size_override("font_size", 13)

@@ -2,6 +2,13 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.10 — composition + screen-relative movement (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.0 | WASD is screen-relative (classic view kept); pentatonic hook + walking bass + sidechain groove. |
+| Usability | 8.9 | Movement matches the screen; no relearning. |
+| **Mean** | **8.87** | Bar cleared. |
+
 ## v0.9 — audio method upgrade (this commit)
 | Axis | Score | Notes |
 |---|---|---|

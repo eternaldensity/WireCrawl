@@ -135,10 +135,15 @@ func _pack_bytes(s: PackedFloat32Array) -> PackedByteArray:
 	return data
 
 func _start_music() -> void:
-	## Generative darksynth, 64-step progression: Am – F – C – G roots,
-	## soft sine/triangle bass, detuned pad chords, gentle kick, hushed hats,
-	## sparse pentatonic plucks, noise riser. Everything lowpassed; 16-bit.
-	var bpm := 92.0
+	## Composition notes (applied theory):
+	## - Key A minor; chords Am7 – Fmaj7 – Cmaj7 – G7 (16 steps each).
+	## - Hook: A-minor pentatonic motif, call (0–15) + response (16–31),
+	##   B-section lift (32–63) with denser rhythm and octave peaks.
+	##   Pentatonic stays consonant over every chord (9ths/13ths at worst).
+	## - Bass: walking eighths (R R 5 R 8 R 5 b7) + sub drone.
+	## - Groove: four-floor kick, backbeat snare, accented offbeat hats,
+	##   open hat pickups, sidechain-ducked pad, crash into the B section.
+	var bpm := 96.0
 	var steps := 64
 	var step_dur: float = 60.0 / bpm / 2.0  # eighth notes
 	var dur: float = steps * step_dur
@@ -147,45 +152,60 @@ func _start_music() -> void:
 	low.resize(n)
 	var high := PackedFloat32Array()
 	high.resize(n)
-	# chord roots (semitones from A1) + minor/major third per 16-step block
-	var roots := [0, -4, 3, -2]  # Am F C G
-	var minors := [true, true, false, false]
-	# fixed sparse pluck melody (step -> semitone offset)
-	var pluck := {2: 12, 7: 15, 11: 19, 18: 12, 22: 10, 27: 15, 34: 19,
-		39: 22, 43: 19, 50: 15, 55: 12, 59: 10}
+	var roots := [0, -4, 3, -2]  # Am F C G, semitones from A1
+	var sevenths := [10, 11, 11, 10]  # Am7 Fmaj7 Cmaj7 G7
+	var thirds := [3, 4, 4, 4]  # minor, major, major, major
+	var bass_pat := [0, 0, 7, 0, 12, 0, 7, 10]
+	var hook := {0: 12, 3: 10, 6: 7, 8: 10, 11: 12, 14: 15,
+		16: 15, 19: 17, 22: 19, 24: 17, 27: 15, 30: 12,
+		32: 12, 34: 12, 36: 15, 38: 17, 40: 19, 42: 19, 44: 22, 46: 19,
+		48: 19, 50: 17, 52: 15, 54: 12, 56: 10, 58: 12, 60: 7, 62: 7}
 	for i in n:
 		var t := float(i) / RATE
 		var step := int(t / step_dur) % steps
 		var block := step / 16
 		var rf: float = 55.0 * pow(2.0, float(roots[block]) / 12.0)
-		var third: float = rf * pow(2.0, 3.0 / 12.0 if minors[block] else 4.0 / 12.0)
+		var third: float = rf * pow(2.0, float(thirds[block]) / 12.0)
 		var fifth: float = rf * pow(2.0, 7.0 / 12.0)
+		var seventh: float = rf * pow(2.0, float(sevenths[block]) / 12.0)
 		var in_step: float = fmod(t, step_dur)
-		# --- low layer: soft bass + gentle kick + warm pad ---
-		var gate: float = 1.0 if in_step < step_dur * 0.7 else 0.25
-		var tri: float = sin(TAU * rf * t) * 0.6 + sin(TAU * rf * 2.0 * t) * 0.18 + sin(TAU * rf * 3.0 * t) * 0.07
+		# --- low layer: walking bass + sub + gentle kick + ducked pad ---
+		var bf: float = rf * pow(2.0, float(bass_pat[step % 8]) / 12.0)
+		var bgate: float = 1.0 if in_step < step_dur * 0.55 else 0.2
+		var bass: float = (sin(TAU * bf * t) * 0.6 + sin(TAU * bf * 2.0 * t) * 0.18) * bgate * 0.5
+		var sub: float = sin(TAU * rf * t) * 0.15
 		var kick := 0.0
+		var kick_env := 0.0
 		if step % 4 == 0 and in_step < 0.16:
+			kick_env = 1.0 - in_step / 0.16
 			var kf: float = 110.0 - 450.0 * in_step
-			kick = sin(TAU * maxf(kf, 36.0) * t) * (1.0 - in_step / 0.16) * 0.65
-		var pad: float = (sin(TAU * rf * 2.0 * t) + sin(TAU * third * 2.0 * t + 0.4) + sin(TAU * fifth * 2.0 * t + 0.8)) * 0.11
-		low[i] = tri * gate * 0.5 + kick + pad
-		# --- high layer: hushed hats + soft snare + pluck + riser ---
+			kick = sin(TAU * maxf(kf, 36.0) * t) * kick_env * 0.55
+		var pad: float = (sin(TAU * rf * 2.0 * t) + sin(TAU * third * 2.0 * t + 0.4) + sin(TAU * fifth * 2.0 * t + 0.8) + sin(TAU * seventh * 2.0 * t + 1.2)) * 0.08
+		pad *= 1.0 - 0.55 * kick_env  # sidechain pump
+		low[i] = bass + sub + kick + pad
+		# --- high layer: hats + snare + hook + fills ---
 		var hat := 0.0
 		if step % 2 == 1 and in_step < 0.03:
-			hat = randf_range(-1.0, 1.0) * (0.22 if step % 8 == 7 else 0.12)
+			var open := step % 16 == 14
+			if open and in_step < 0.12:
+				hat = randf_range(-1.0, 1.0) * 0.20
+			else:
+				hat = randf_range(-1.0, 1.0) * (0.20 if step % 4 == 3 else 0.11)
 		var snare := 0.0
 		if (step % 16 == 4 or step % 16 == 12) and in_step < 0.12:
 			snare = randf_range(-1.0, 1.0) * (1.0 - in_step / 0.12) * 0.22
-		var pluck_s := 0.0
-		if pluck.has(step):
-			var pf: float = 220.0 * pow(2.0, float(pluck[step]) / 12.0)
+		var hook_s := 0.0
+		if hook.has(step):
+			var hf: float = 220.0 * pow(2.0, float(hook[step]) / 12.0)
 			if in_step < 0.4:
-				pluck_s = (sin(TAU * pf * t) * 0.6 + sin(TAU * pf * 2.0 * t) * 0.25) * (1.0 - in_step / 0.4) * 0.38
+				hook_s = (sin(TAU * hf * t) * 0.6 + sin(TAU * hf * 2.0 * t) * 0.25) * (1.0 - in_step / 0.4) * 0.42
+		var crash := 0.0
+		if step == 32 and in_step < 0.5:
+			crash = randf_range(-1.0, 1.0) * (1.0 - in_step / 0.5) * 0.25
 		var riser := 0.0
 		if step >= 60:
 			riser = randf_range(-1.0, 1.0) * float(step - 60) / 4.0 * 0.15
-		high[i] = hat + snare + pluck_s + riser
+		high[i] = hat + snare + hook_s + crash + riser
 	_lpf(low, 0.30)
 	_lpf(high, 0.12)
 	_normalize(low, 0.89)

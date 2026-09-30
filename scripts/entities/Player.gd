@@ -232,14 +232,11 @@ func _physics_process(delta: float) -> void:
 		RunManager.take_damage(RunManager.max_hp * 0.015 * delta * 10.0 * 0.1)
 	if cloak > 0.0:
 		cloak -= delta
-	# Move
+	# Move — screen-relative: W goes screen-up regardless of camera yaw.
 	var input := Vector2(
 		Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
 		Input.get_action_strength("move_back") - Input.get_action_strength("move_fwd"))
-	var wish := Vector3(input.x, 0, input.y)
-	if wish.length() > 1.0:
-		wish = wish.normalized()
-	# Camera-relative (camera is isometric, yaw fixed) — world aligned already.
+	var wish := _screen_wish(input)
 	var spd: float = move_speed
 	if dash_time > 0.0:
 		velocity = dash_dir * move_speed * 3.4
@@ -271,6 +268,22 @@ func _physics_process(delta: float) -> void:
 		(part as MeshInstance3D).transparency = cloak_a
 	var stride: float = clampf(Vector2(velocity.x, velocity.z).length() / 7.0, 0.0, 1.5)
 	_rig.position.y = absf(sin(_t * 9.0)) * 0.07 * stride
+
+func _screen_wish(input: Vector2) -> Vector3:
+	## Maps WASD to camera space: W = screen-up, D = screen-right.
+	## Falls back to world mapping when no camera is attached (tests).
+	if camera == null:
+		var raw := Vector3(input.x, 0, input.y)
+		return raw.normalized() if raw.length() > 1.0 else raw
+	var fwd: Vector3 = -camera.global_transform.basis.z
+	fwd.y = 0.0
+	var right: Vector3 = camera.global_transform.basis.x
+	right.y = 0.0
+	if fwd.length() < 0.01 or right.length() < 0.01:
+		var raw2 := Vector3(input.x, 0, input.y)
+		return raw2.normalized() if raw2.length() > 1.0 else raw2
+	var wish: Vector3 = right.normalized() * input.x - fwd.normalized() * input.y
+	return wish.normalized() if wish.length() > 1.0 else wish
 
 func _has_affix(id: String) -> bool:
 	for a in weapon.get("affixes", []):
@@ -448,8 +461,9 @@ func try_dash() -> void:
 	if dash_cd > 0.0:
 		return
 	dash_cd = 1.1
-	var dir := Vector3(Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
-		0, Input.get_action_strength("move_back") - Input.get_action_strength("move_fwd"))
+	var dir := _screen_wish(Vector2(
+		Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
+		Input.get_action_strength("move_back") - Input.get_action_strength("move_fwd")))
 	if dir.length() < 0.1:
 		dir = aim_dir
 	dash_dir = dir.normalized()

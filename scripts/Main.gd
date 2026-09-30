@@ -54,6 +54,7 @@ func _ensure_input() -> void:
 	_add_key("program_2", [KEY_E])
 	_add_key("equip_1", [KEY_1])
 	_add_key("equip_2", [KEY_2])
+	_add_key("interact", [KEY_F])
 	if not InputMap.has_action("swap_weapon"):
 		InputMap.add_action("swap_weapon")
 		var tab := InputEventKey.new()

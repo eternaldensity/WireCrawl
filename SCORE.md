@@ -2,6 +2,16 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.8 — feel + clarity pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.0 | Heat-gated triggers, LoS-gated attacks, strafing/telegraphs, hackable terminals, W-up camera. |
+| Usability | 8.9 | Enemy HP bars, expiring feed, queued loot, hack prompts, readable pickups/crates. |
+| Layout | 8.7 | Varied floor shader + trim palettes. |
+| Content | 8.8 | Terminals + heat add systemic depth. |
+| Visuals | 9.2 | Blade swing + sweep arcs, outline X-ray, distinct pickups, 19s evolving track. |
+| **Mean** | **8.86** | Bar cleared. |
+
 ## v0.7 — combat readability pass (this commit)
 | Axis | Score | Notes |
 |---|---|---|

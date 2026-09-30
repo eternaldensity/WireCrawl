@@ -13,6 +13,8 @@ var minimap: Control
 var boss_bar: ProgressBar
 var boss_label: Label
 var boss_box: Control
+var heat_bar: ProgressBar
+var interact_label: Label
 var _obj_base := "Reach the EXIT uplink"
 var _obj_t := 0.0
 var prog_labels: Array = []
@@ -20,6 +22,7 @@ var weapon_label: Label
 var loot_panel: PanelContainer
 var loot_rich: RichTextLabel
 var pending_loot := {}
+var loot_queue: Array = []
 var loot_timer := 0.0
 var vignette: ColorRect
 var _feed_lines: Array = []
@@ -63,6 +66,12 @@ func _build() -> void:
 	en_bar.custom_minimum_size = Vector2(300, 9)
 	en_bar.show_percentage = false
 	vitals.add_child(en_bar)
+	heat_bar = ProgressBar.new()
+	heat_bar.custom_minimum_size = Vector2(300, 6)
+	heat_bar.show_percentage = false
+	heat_bar.max_value = 100.0
+	heat_bar.value = 0.0
+	vitals.add_child(heat_bar)
 	obj_label = Label.new()
 	obj_label.add_theme_font_size_override("font_size", 14)
 	obj_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.6))
@@ -111,6 +120,15 @@ func _build() -> void:
 	feed.scroll_following = true
 	feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(feed)
+	interact_label = Label.new()
+	interact_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	interact_label.position = Vector2(-200, -120)
+	interact_label.custom_minimum_size = Vector2(400, 30)
+	interact_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	interact_label.add_theme_font_size_override("font_size", 18)
+	interact_label.add_theme_color_override("font_color", Color(0.976, 0.941, 0.008))
+	interact_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(interact_label)
 	# announce center
 	announce_label = Label.new()
 	announce_label.set_anchors_preset(Control.PRESET_CENTER)
@@ -149,6 +167,7 @@ func _process(delta: float) -> void:
 	if _obj_t <= 0.0:
 		_obj_t = 0.25
 		_refresh_objective()
+	_prune_feed()
 	if dungeon != null and dungeon.boss != null and is_instance_valid(dungeon.boss):
 		boss_box.visible = not (dungeon.boss as WCEnemy).dead
 		boss_label.text = "☠ " + String((dungeon.boss as WCEnemy).data.get("name", "BOSS"))
@@ -159,8 +178,7 @@ func _process(delta: float) -> void:
 	if loot_timer > 0.0:
 		loot_timer -= delta
 		if loot_timer <= 0.0:
-			loot_panel.visible = false
-			pending_loot = {}
+			_advance_loot()
 	if dungeon != null and dungeon.player != null and is_instance_valid(dungeon.player):
 		var wp: Dictionary = dungeon.player.weapon
 		var ws: Dictionary = RunManager.loadout.get("secondary", {})
@@ -170,6 +188,8 @@ func _process(delta: float) -> void:
 	# program cooldown labels
 	if dungeon != null and dungeon.player != null and is_instance_valid(dungeon.player):
 		var p: WCPlayer = dungeon.player
+		heat_bar.value = p.heat
+		heat_bar.modulate = Color(1.0, 0.3, 0.15) if p.overheated else Color.WHITE
 		for i in mini(3, prog_labels.size()):
 			var pid := String(p.programs[i]) if i < p.programs.size() else ""
 			var pd: Dictionary = GameDB.PROGRAMS.get(pid, {})
@@ -211,22 +231,32 @@ func _build_loot_panel() -> void:
 	var bx := Button.new()
 	bx.text = "LEAVE"
 	row.add_child(bx)
-	bx.pressed.connect(func(): loot_panel.visible = false)
+	bx.pressed.connect(func(): _advance_loot())
 	loot_panel.visible = false
 	WCBrackets.attach_to(loot_panel, Color(0.976, 0.941, 0.008))
 
 func show_loot(item: Dictionary) -> void:
-	pending_loot = item
+	loot_queue.append(item)
+	if pending_loot.is_empty():
+		_advance_loot()
+
+func _advance_loot() -> void:
+	if loot_queue.is_empty():
+		pending_loot = {}
+		loot_timer = 0.0
+		loot_panel.visible = false
+		return
+	pending_loot = loot_queue.pop_front()
 	loot_timer = 14.0
-	var col: Color = GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE)
+	var col: Color = GameDB.RARITY_COLORS.get(String(pending_loot.get("rarity", "common")), Color.WHITE)
 	var cur1: Dictionary = RunManager.loadout.get("primary", {})
 	var cur2: Dictionary = RunManager.loadout.get("secondary", {})
-	var ndps := float(item.get("dps", 0))
+	var ndps := float(pending_loot.get("dps", 0))
 	var best := maxf(float(cur1.get("dps", 0)), float(cur2.get("dps", 0)))
 	var verdict := "[color=#3dff66]UPGRADE[/color]" if ndps > best * 1.05 else "[color=#ff5f5f]SIDE-GRADE[/color]"
 	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color] %s\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
-		col.to_html(false), String(item.get("name", "?")),
-		String(item.get("rarity", "")).capitalize(), ndps, verdict,
+		col.to_html(false), String(pending_loot.get("name", "?")),
+		String(pending_loot.get("rarity", "")).capitalize(), ndps, verdict,
 		String(cur1.get("name", "—")), float(cur1.get("dps", 0)),
 		String(cur2.get("name", "—")), float(cur2.get("dps", 0))]
 	loot_panel.visible = true
@@ -236,8 +266,7 @@ func choose_loot(slot: String) -> void:
 		return
 	if dungeon.player != null and is_instance_valid(dungeon.player):
 		dungeon.player.equip_item(pending_loot, slot)
-	pending_loot = {}
-	loot_panel.visible = false
+	_advance_loot()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not loot_panel.visible or pending_loot.is_empty():
@@ -259,6 +288,10 @@ func _refresh_objective() -> void:
 	if RunManager.boss_spawned and not RunManager.boss_dead:
 		gate = " · ☠ BOSS FIRST"
 	obj_label.text = "◈ %s — EXIT %dm · %d hostiles%s" % [_obj_base, int(d), foes, gate]
+	if dungeon.nearest_terminal(dungeon.player.global_position) >= 0:
+		interact_label.text = "◈ [F] HACK TERMINAL"
+	else:
+		interact_label.text = ""
 
 func announce(text: String, color := Color.WHITE) -> void:
 	announce_label.text = text
@@ -286,10 +319,26 @@ func _on_loot(item: Dictionary) -> void:
 		String(item.get("rarity", "")).capitalize(), float(item.get("dps", 0))])
 
 func _push_feed(bb: String) -> void:
-	_feed_lines.append(bb)
+	_feed_lines.append({"bb": bb, "exp": Time.get_ticks_msec() / 1000.0 + 7.0})
 	while _feed_lines.size() > 7:
 		_feed_lines.pop_front()
-	feed.text = "\n".join(_feed_lines)
+	_render_feed()
+
+func _prune_feed() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var kept: Array = []
+	for e in _feed_lines:
+		if float(e.get("exp", 0.0)) > now:
+			kept.append(e)
+	if kept.size() != _feed_lines.size():
+		_feed_lines = kept
+		_render_feed()
+
+func _render_feed() -> void:
+	var parts: Array = []
+	for e in _feed_lines:
+		parts.append(String(e.get("bb", "")))
+	feed.text = "\n".join(parts)
 
 func _refresh_bars() -> void:
 	_on_hp(RunManager.hp, RunManager.max_hp)

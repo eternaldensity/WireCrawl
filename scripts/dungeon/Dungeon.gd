@@ -26,6 +26,7 @@ var extracted := false
 var vault_center := Vector3.ZERO
 var has_vault := false
 var vault_item := {}
+var terminals: Array = []
 var clear_timer := 0.0
 var float_layer: Node3D
 var fx_layer: Node3D
@@ -185,18 +186,29 @@ uniform vec4 base_color : source_color = vec4(0.015, 0.015, 0.045, 1.0);
 uniform vec4 line_cyan : source_color = vec4(0.02, 0.85, 0.91, 1.0);
 uniform vec4 line_pink : source_color = vec4(1.0, 0.16, 0.43, 1.0);
 varying vec3 wpos;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
+	vec2 cell = floor(wpos.xz / 4.0);
+	float h = hash(cell);
 	vec2 g = abs(fract(wpos.xz / 4.0) - 0.5);
 	float line = smoothstep(0.46, 0.5, max(g.x, g.y));
+	vec2 sub = abs(fract(wpos.xz / 1.0) - 0.5);
+	float subline = smoothstep(0.44, 0.5, max(sub.x, sub.y)) * 0.25;
 	vec2 g2 = abs(fract(wpos.xz / 20.0) - 0.5);
 	float major = smoothstep(0.465, 0.5, max(g2.x, g2.y));
-	float checker = mod(floor(wpos.x / 4.0) + floor(wpos.z / 4.0), 2.0);
-	vec3 col = base_color.rgb + checker * 0.012;
-	col += line_cyan.rgb * line * 0.55;
+	float checker = mod(cell.x + cell.y, 2.0);
+	// per-tile tonal variety + occasional hot data tile
+	vec3 col = base_color.rgb * (0.75 + h * 0.5) + checker * 0.012;
+	col += vec3(0.05, 0.02, 0.10) * smoothstep(0.6, 1.0, sin(wpos.x * 0.11) * sin(wpos.z * 0.13));
+	vec3 line_col = mix(line_cyan.rgb, line_pink.rgb, step(0.82, h));
+	float data_tile = step(0.965, h);
+	col += line_col * (line * 0.55 + subline * 0.4);
 	col += line_pink.rgb * major * 0.9;
+	col += line_cyan.rgb * data_tile * (0.5 + 0.5 * sin(TIME * 2.0 + h * 40.0));
 	ALBEDO = col;
-	EMISSION = line_cyan.rgb * line * 1.6 + line_pink.rgb * major * 2.2;
+	EMISSION = line_col * (line * 1.6 + subline * 0.5) + line_pink.rgb * major * 2.2
+		+ line_cyan.rgb * data_tile * 2.5;
 	ROUGHNESS = 0.35;
 	METALLIC = 0.6;
 }
@@ -243,12 +255,16 @@ func _build_level() -> void:
 	trim_mat.emission = Color(0.02, 0.85, 0.91)
 	trim_mat.emission_energy_multiplier = 3.0
 	trim_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var win_pink := StandardMaterial3D.new()
-	win_pink.albedo_color = Color(1.0, 0.16, 0.43)
-	win_pink.emission_enabled = true
-	win_pink.emission = Color(1.0, 0.16, 0.43)
-	win_pink.emission_energy_multiplier = 2.6
-	win_pink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var trim_palette: Array = [trim_mat]
+	for pc in [Color(1.0, 0.16, 0.43), Color(0.976, 0.941, 0.008), Color(0.55, 0.4, 1.0)]:
+		var pmat := StandardMaterial3D.new()
+		pmat.albedo_color = pc
+		pmat.emission_enabled = true
+		pmat.emission = pc
+		pmat.emission_energy_multiplier = 3.0
+		pmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		trim_palette.append(pmat)
+	var win_pink: StandardMaterial3D = trim_palette[1]
 	var walls := StaticBody3D.new()
 	walls.collision_layer = 1
 	walls.collision_mask = 0
@@ -283,7 +299,8 @@ func _build_level() -> void:
 				var tm := BoxMesh.new()
 				tm.size = Vector3(length, 0.1, 0.12)
 				trim.mesh = tm
-				trim.material_override = trim_mat if (y % 2 == 0) else wall_mat
+				var run_trim: StandardMaterial3D = trim_palette[absi(x * 7 + y * 13) % trim_palette.size()]
+				trim.material_override = run_trim
 				trim.position = Vector3(cx, 3.45, cz - CELL / 2.0 + 0.06)
 				walls.add_child(trim)
 				# lit window strips on the floor-facing side
@@ -304,7 +321,7 @@ func _build_level() -> void:
 						var wqm := QuadMesh.new()
 						wqm.size = Vector2(1.7, 0.9)
 						win.mesh = wqm
-						win.material_override = trim_mat if ((x + k) % 2 == 0) else win_pink
+						win.material_override = run_trim if ((x + k) % 2 == 0) else win_pink
 						win.position = Vector3(wx, 2.1, wz)
 						if faced < 0:
 							win.rotation.y = PI
@@ -507,6 +524,57 @@ func _holo_pillar(parent: Node, pos: Vector3, col: Color) -> void:
 	light.omni_range = 10.0
 	light.position = pos + Vector3(0, 3.0, 0)
 	parent.add_child(light)
+	# hackable terminal marker: gold ring at the pillar base
+	var tring := MeshInstance3D.new()
+	var ttm := TorusMesh.new()
+	ttm.inner_radius = 0.7
+	ttm.outer_radius = 0.9
+	tring.mesh = ttm
+	var tmat := StandardMaterial3D.new()
+	tmat.albedo_color = Color(0.976, 0.941, 0.008)
+	tmat.emission_enabled = true
+	tmat.emission = Color(0.976, 0.941, 0.008)
+	tmat.emission_energy_multiplier = 2.0
+	tmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tring.material_override = tmat
+	tring.position = pos + Vector3(0, 0.08, 0)
+	parent.add_child(tring)
+	terminals.append({"pos": pos + Vector3(0, 0, 0), "taken": false, "ring": tring})
+
+func nearest_terminal(pos: Vector3) -> int:
+	for i in terminals.size():
+		var t: Dictionary = terminals[i]
+		if bool(t.get("taken", true)):
+			continue
+		if (t["pos"] as Vector3).distance_to(pos) < 3.4:
+			return i
+	return -1
+
+func try_hack() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	var idx := nearest_terminal(player.global_position)
+	if idx < 0:
+		return
+	var t: Dictionary = terminals[idx]
+	t["taken"] = true
+	terminals[idx] = t
+	var ring := t.get("ring") as MeshInstance3D
+	if ring != null and is_instance_valid(ring):
+		ring.queue_free()
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var creds := rng.randi_range(25, 60)
+	RunManager.credits_earned += creds
+	RunManager.energy = minf(RunManager.max_energy, RunManager.energy + 40.0)
+	AudioDirector.play("pickup", 1.4)
+	float_text(player.global_position + Vector3(0, 2.6, 0), "HACKED +%dcr" % creds,
+		Color(0.976, 0.941, 0.008))
+	spawn_blast_fx(player.global_position + Vector3(0, 1.0, 0), 1.5, Color(0.976, 0.941, 0.008))
+	if rng.randf() < 0.25:
+		var bonus := LootFactory.roll_weapon(threat, RunManager.luck)
+		RunManager.register_loot(bonus)
+		WCPickup.spawn(self, player.global_position + Vector3(1.5, 0, 0), "loot", 0, bonus)
 
 func _build_exit(ox: float, oz: float) -> void:
 	exit_pos = _cell_to_world(layout["exit"]) + Vector3(0, 0, 0)
@@ -688,7 +756,7 @@ func summon_adds(pos: Vector3, count: int) -> void:
 
 func _process(delta: float) -> void:
 	if player != null and cam != null:
-		var target: Vector3 = player.global_position + Vector3(6.5, 13.5, 9.5)
+		var target: Vector3 = player.global_position + Vector3(0, 14.0, 12.0)
 		var shake_on := bool(SaveSystem.profile.get("settings", {}).get("screenshake", true))
 		if cam_shake > 0.0 and shake_on:
 			cam_shake -= delta * 3.0
@@ -706,7 +774,7 @@ func _build_camera() -> void:
 	cam.size = 26.0
 	cam.far = 200.0
 	add_child(cam)
-	cam.global_position = player.global_position + Vector3(6.5, 13.5, 9.5)
+	cam.global_position = player.global_position + Vector3(0, 14.0, 12.0)
 	cam.look_at(player.global_position, Vector3.UP)
 	player.camera = cam
 	cam.make_current()
@@ -938,7 +1006,7 @@ func spawn_blast_fx(pos: Vector3, radius: float, color: Color) -> void:
 	tw.chain().tween_callback(m.queue_free)
 
 func spawn_slash_fx(pos: Vector3, dir: Vector3, color: Color) -> void:
-	## Melee crescent: three fanned arcs + hot core line.
+	## Melee crescent: three fanned arcs sweeping across the swing.
 	var base_yaw := atan2(-dir.x, -dir.z)
 	for k in [-0.55, 0.0, 0.55]:
 		var m := MeshInstance3D.new()
@@ -954,11 +1022,12 @@ func spawn_slash_fx(pos: Vector3, dir: Vector3, color: Color) -> void:
 		m.material_override = mat
 		fx_layer.add_child(m)
 		m.global_position = pos
-		m.rotation.y = base_yaw + k
+		m.rotation.y = base_yaw + k - 0.45
 		var tw := m.create_tween()
 		tw.set_parallel(true)
+		tw.tween_property(m, "rotation:y", base_yaw + k + 0.45, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(m, "scale", Vector3(1.5, 1, 1), 0.16)
-		tw.tween_property(m, "transparency", 1.0, 0.18)
+		tw.tween_property(m, "transparency", 1.0, 0.2)
 		tw.chain().tween_callback(m.queue_free)
 
 func spawn_beam_fx(a: Vector3, b: Vector3, color: Color) -> void:

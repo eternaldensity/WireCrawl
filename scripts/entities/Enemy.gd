@@ -28,14 +28,29 @@ var target: Node3D = null
 var flying := false
 var dead := false
 var elite := false
+var strafe_dir := 1.0
+var strafe_t := 0.0
+var windup := 0.0
 var _t := 0.0
 var _body: MeshInstance3D
 var _rig: Node3D
 var _shards: Array = []
 var _ring: MeshInstance3D
+var _hpbg: Sprite3D
+var _hpfg: Sprite3D
+var _bar_t := 0.0
 var _mat: StandardMaterial3D
 var _base_y := 0.0
 var dungeon = null
+
+static var _bar_tex: Texture2D = null
+
+static func bar_texture() -> Texture2D:
+	if _bar_tex == null:
+		var img := Image.create(16, 2, false, Image.FORMAT_RGBA8)
+		img.fill(Color.WHITE)
+		_bar_tex = ImageTexture.create_from_image(img)
+	return _bar_tex
 
 static func spawn(parent: Node, p_key: String, pos: Vector3, p_threat: int) -> WCEnemy:
 	var e := WCEnemy.new()
@@ -201,8 +216,8 @@ func _build_visual(sc: float) -> void:
 	_ring.material_override = rm
 	_ring.position.y = 0.06
 	add_child(_ring)
-	# X-ray silhouette: same core mesh, depth-test off, slightly larger —
-	# readable through walls from the isometric camera.
+	# X-ray outline: inverted hull (back faces) of the core mesh, depth-test
+	# off, slightly larger — a glowing rim readable through walls.
 	var sil := MeshInstance3D.new()
 	sil.name = "XRay"
 	sil.mesh = _body.mesh
@@ -213,11 +228,30 @@ func _build_visual(sc: float) -> void:
 	smat.emission_energy_multiplier = 2.2
 	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	smat.no_depth_test = true
+	smat.cull_mode = BaseMaterial3D.CULL_FRONT
 	sil.material_override = smat
 	sil.position = _body.position
 	sil.scale = Vector3.ONE * 1.07
 	sil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_rig.add_child(sil)
+	# floating HP bar (bosses use the HUD bar instead)
+	if not is_boss:
+		_hpbg = Sprite3D.new()
+		_hpbg.texture = bar_texture()
+		_hpbg.pixel_size = 0.05
+		_hpbg.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_hpbg.modulate = Color(0, 0, 0, 0.7)
+		_hpbg.position = Vector3(0, 2.35 * sc, 0)
+		_hpbg.visible = false
+		add_child(_hpbg)
+		_hpfg = Sprite3D.new()
+		_hpfg.texture = bar_texture()
+		_hpfg.pixel_size = 0.05
+		_hpfg.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_hpfg.modulate = Color(0.2, 1.0, 0.3) if not elite else Color(0.976, 0.941, 0.008)
+		_hpfg.position = Vector3(0, 2.35 * sc, 0)
+		_hpfg.visible = false
+		add_child(_hpfg)
 	if is_boss:
 		AudioDirector.play("boss")
 	# materialize-in effect
@@ -236,6 +270,8 @@ func make_elite() -> void:
 	xp *= 2
 	creds *= 2
 	scale *= 1.18
+	if _hpfg != null:
+		_hpfg.modulate = Color(0.976, 0.941, 0.008)
 	if _ring != null:
 		var rm := _ring.material_override as StandardMaterial3D
 		rm.emission = Color(0.976, 0.941, 0.008)
@@ -281,26 +317,41 @@ func _physics_process(delta: float) -> void:
 			elif attack_cd <= 0.0:
 				_melee(dir)
 		"dasher":
-			if dashing > 0.0:
+			if windup > 0.0:
+				windup -= delta
+				vel = Vector3.ZERO
+				if _mat != null:
+					_mat.emission_energy_multiplier = 3.0 + sin(_t * 30.0) * 1.5
+				if windup <= 0.0:
+					dashing = 0.35
+					dash_cd = 2.4
+					dash_dir = dir
+					if _mat != null:
+						_mat.emission_energy_multiplier = 0.9
+					AudioDirector.play("dash", 0.7)
+			elif dashing > 0.0:
 				dashing -= delta
 				vel = dash_dir * speed * 3.2
-			elif dist < 9.0 and dist > 2.0 and dash_cd <= 0.0:
-				dashing = 0.35
-				dash_cd = 2.4
-				dash_dir = dir
-				AudioDirector.play("dash", 0.7)
+			elif dist < 9.0 and dist > 2.0 and dash_cd <= 0.0 and _los_clear(target.global_position):
+				windup = 0.45  # telegraph: glow strobes, then lunge
+				AudioDirector.play("dash", 0.5)
 			elif dist > 1.7:
 				vel = dir * speed * slowed
 			elif attack_cd <= 0.0:
 				_melee(dir)
 		"shooter":
-			if dist > 16.0:
-				vel = dir * speed * slowed
+			strafe_t -= delta
+			if strafe_t <= 0.0:
+				strafe_t = randf_range(1.5, 3.0)
+				strafe_dir = -strafe_dir
+			var clear := _los_clear(target.global_position)
+			if dist > 16.0 or not clear:
+				vel = dir * speed * slowed  # reposition for a lane
 			elif dist < 7.0:
 				vel = -dir * speed * 0.7 * slowed
 			else:
-				vel = Vector3.ZERO
-			if attack_cd <= 0.0 and dist < 22.0:
+				vel = dir.rotated(Vector3.UP, PI / 2.0) * strafe_dir * speed * 0.45 * slowed
+			if attack_cd <= 0.0 and dist < 22.0 and clear:
 				_shoot(dir)
 		"boss":
 			_boss_brain(delta, dir, dist, slowed)
@@ -334,6 +385,19 @@ func _physics_process(delta: float) -> void:
 			var s := _shards[si] as MeshInstance3D
 			var a := _t * 2.2 + TAU * float(si) / float(_shards.size())
 			s.position = Vector3(cos(a) * 1.1, 1.4 + sin(_t * 3.0 + float(si)) * 0.15, sin(a) * 1.1)
+	if _hpfg != null:
+		if _bar_t > 0.0:
+			_bar_t -= delta
+			_hpbg.visible = true
+			_hpfg.visible = true
+			var frac := clampf(hp / maxf(max_hp, 1.0), 0.0, 1.0)
+			_hpfg.scale = Vector3(maxf(frac, 0.001), 1.0, 1.0)
+			_hpfg.position.x = -0.4 * (1.0 - frac)
+			if not elite:
+				_hpfg.modulate = Color(1.0 - frac, 0.1 + frac * 0.9, 0.2)
+		else:
+			_hpbg.visible = false
+			_hpfg.visible = false
 	_update_ring()
 
 func _boss_vel(dir: Vector3, dist: float, slowed: float) -> Vector3:
@@ -363,12 +427,21 @@ func _boss_brain(delta: float, dir: Vector3, dist: float, slowed: float) -> void
 		else:
 			_summon_adds()
 
+func _los_clear(to_pos: Vector3) -> bool:
+	## True when no world geometry blocks the shot/melee lane.
+	var params := PhysicsRayQueryParameters3D.create(
+		global_position + Vector3(0, 1.2, 0), to_pos + Vector3(0, 1.0, 0))
+	params.collision_mask = 1
+	params.exclude = [get_rid()]
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(params)
+	return hit.is_empty()
+
 func _melee(dir: Vector3) -> void:
 	attack_cd = 1.1 if not is_boss else 0.8
 	AudioDirector.play("melee", 0.8)
 	if target != null and target.has_method("take_hit"):
 		var d: float = global_position.distance_to(target.global_position)
-		if d < (2.6 if not is_boss else 4.2):
+		if d < (2.6 if not is_boss else 4.2) and _los_clear(target.global_position):
 			target.take_hit(dmg, "kinetic", ["kinetic_hit", "melee"], global_position)
 
 func _shoot(dir: Vector3) -> void:
@@ -396,6 +469,7 @@ func _summon_adds() -> void:
 func take_hit(amount: float, dmg_type: String, tags: Array, from_pos: Vector3) -> void:
 	if dead:
 		return
+	_bar_t = 3.0
 	var mult := 1.0
 	var ttags: Array = tags.duplicate()
 	if dmg_type == "kinetic":

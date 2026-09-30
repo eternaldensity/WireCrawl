@@ -16,7 +16,9 @@ below. Autoloads boot in the order listed in `project.godot`.
 - Emits nothing; callers re-read profile.
 
 ## 3. AudioDirector (autoload)
-- `play(name, pitch)` — cached synthesized SFX. Generative music starts in `_ready`.
+- `play(name, pitch)` — cached synthesized SFX. Generative music starts in `_ready`:
+  64-step Am–F–C–G darksynth (soft bass, pad chords, kick/snare/hats, sparse
+  plucks, loop riser).
 - `set_volumes(master, music, sfx)`. `enabled=false` silences (used headless).
 
 ## 4. RunManager (autoload, run state)
@@ -48,7 +50,8 @@ below. Autoloads boot in the order listed in `project.godot`.
   player, encounters, camera. Layout comes from the Rust core when the
   extension is loaded (`WCDungeonRust`, see §11), else `DungeonGen`.
   Post-layout, `_build_vault` seeds a far-room vault (elite guards + epic+
-  loot) on either backend.
+  loot) on either backend. Holo pillars double as hackable terminals
+  (`try_hack`: credits/energy/bonus loot). Camera sits on +Z so W is screen-up.
 - Owns FX API used by entities: `float_text, spawn_damage_number,
   spawn_blast_fx, spawn_flash_fx, spawn_impact_fx, spawn_slash_fx (crescent),
   spawn_beam_fx`; room tints + wall window strips dress sectors; program AoE: `deploy_turret, summon_hound, blackout_blast,
@@ -57,10 +60,12 @@ below. Autoloads boot in the order listed in `project.godot`.
   Kill-streak callouts (double/rampage/overdrive) with energy-free fanfare.
 
 ## 9. Entities (`scripts/entities/`)
-- `WCPlayer`: input → move/aim/fire/dash/programs; reads RunManager for vitals,
-  LootFactory item for damage; visible blade/gun models rebuilt on swap/equip;
-  X-ray silhouette; writes via RunManager/SynergyEngine/Dungeon.
-- `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`), statuses,
+- `WCPlayer`: input → move/aim/fire/dash/programs/hack; heat-gated trigger
+  (primary 30-shot / heavy 8-shot mags, 1.2s overheat lock); reads RunManager
+  for vitals, LootFactory item for damage; visible blade/gun models rebuilt
+  on swap/equip; X-ray outline; writes via RunManager/SynergyEngine/Dungeon.
+- `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`) with LoS-gated
+  attacks, shooter strafing, dasher telegraphs, statuses, floating HP bars,
   synergy event resolution, `make_elite()` champions, procedural rig models
   (mohawks, blades, rotors, robes+orbiting shards, pauldrons, boss crowns),
   walk-bob/sway locomotion, drops via `dungeon.on_enemy_died`.
@@ -79,8 +84,8 @@ below. Autoloads boot in the order listed in `project.godot`.
   content; selections re-render the tab only (`_refresh_title`).
 - HUD observes RunManager signals + polls dungeon (boss bar, cooldowns, minimap,
   dual-weapon readout, exit-distance + hostiles objective tracker). Loot choice
-  panel (`[1]`/`[2]`/click, 14s timeout, UPGRADE verdict) calls
-  `WCPlayer.equip_item`.
+  panel (`[1]`/`[2]`/click, 14s timeout, UPGRADE verdict, queued offers) calls
+  `WCPlayer.equip_item`. Feed lines expire after 7s.
 - Main owns screen flow + runtime InputMap bootstrap + pause + debrief +
   run-start fade transition.
 

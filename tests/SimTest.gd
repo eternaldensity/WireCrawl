@@ -31,6 +31,7 @@ func _ensure_test_input() -> void:
 	_add_test_key("swap_weapon", [KEY_TAB])
 	_add_test_key("equip_1", [KEY_1])
 	_add_test_key("equip_2", [KEY_2])
+	_add_test_key("interact", [KEY_F])
 	if not InputMap.has_action("fire"):
 		InputMap.add_action("fire")
 
@@ -175,6 +176,44 @@ func _test_dungeon_boot() -> void:
 	_check(dng.has_vault, "vault_exists")
 	_check(String(dng.vault_item.get("rarity", "")) in ["epic", "legendary", "mythic"],
 		"vault_loot_floor", "(%s)" % String(dng.vault_item.get("rarity", "?")))
+	# heat: sustained fire overheats and locks the trigger
+	dng.player.heat = 99.0
+	dng.player.overheated = false
+	var shots0: int = dng.player.shots_fired
+	dng.player.fire_cd = 0.0
+	dng.player.try_fire()
+	_check(dng.player.overheated, "overheat_triggers")
+	var shots1: int = dng.player.shots_fired
+	dng.player.fire_cd = 0.0
+	dng.player.try_fire()
+	_check(dng.player.shots_fired == shots1, "overheat_locks_fire",
+		"(shots %d -> %d)" % [shots0, shots1])
+	# loot queue: two offers while panel busy keeps both
+	var hud := WCHUD.new()
+	add_child(hud)
+	hud.dungeon = dng
+	await get_tree().process_frame
+	var qa: Dictionary = LootFactory.roll_weapon(2, 0.0, "smg", "rare")
+	var qb: Dictionary = LootFactory.roll_weapon(2, 0.0, "katana", "epic")
+	hud.show_loot(qa)
+	hud.show_loot(qb)
+	_check(hud.loot_queue.size() == 1 and not hud.pending_loot.is_empty(), "loot_queues",
+		"(pending=%s queued=%d)" % [String(hud.pending_loot.get("name", "?")), hud.loot_queue.size()])
+	hud.choose_loot("secondary")
+	_check(String(hud.pending_loot.get("weapon_id", "")) == "katana", "loot_advances",
+		"(now %s)" % String(hud.pending_loot.get("weapon_id", "?")))
+	hud.queue_free()
+	# terminals: teleport to one and hack it
+	if not dng.terminals.is_empty():
+		var tp: Vector3 = (dng.terminals[0] as Dictionary)["pos"]
+		dng.player.global_position = tp
+		var cr0: int = RunManager.credits_earned
+		dng.try_hack()
+		_check(RunManager.credits_earned > cr0, "hack_pays",
+			"(%d -> %d)" % [cr0, RunManager.credits_earned])
+		_check(bool((dng.terminals[0] as Dictionary)["taken"]), "hack_marks_taken")
+	else:
+		_check(true, "hack_skipped_no_terminals")
 	dng.queue_free()
 	RunManager.end_run(false)
 

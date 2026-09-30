@@ -65,6 +65,9 @@ func take_hit(amount: float, _dmg_type: String, _tags: Array, _from: Vector3) ->
 	_mat.emission_energy_multiplier = 1.6
 	var tw := create_tween()
 	tw.tween_property(_mat, "emission_energy_multiplier", 0.25, 0.12)
+	if dungeon != null and dungeon.has_method("spawn_impact_fx"):
+		dungeon.spawn_impact_fx(global_position + Vector3(0, size * 0.6, 0),
+			Color(0.976, 0.941, 0.008))
 	if hp <= 0.0:
 		_break()
 

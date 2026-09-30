@@ -18,6 +18,10 @@ var dash_charges := 1
 var iframes := 0.0
 var prog_cds := {"slot1": 0.0, "slot2": 0.0}
 var overdrive := 0.0
+var heat := 0.0
+var overheated := false
+var overheat_t := 0.0
+var shots_fired := 0
 var cloak := 0.0
 var alive := true
 var statuses := {}
@@ -84,7 +88,7 @@ func _build_visual() -> void:
 	_pbox(Vector3(0.22, 0.18, 0.3), Vector3(-0.5, 1.45, 0), visor_mat)
 	_pbox(Vector3(0.22, 0.3, 0.3), Vector3(0.5, 1.4, 0), _mat)
 	_rebuild_held()
-	# X-ray silhouette so the rig reads through walls.
+	# X-ray outline (inverted hull) so the rig reads through walls.
 	var sil := MeshInstance3D.new()
 	sil.name = "XRay"
 	var sm := BoxMesh.new()
@@ -97,6 +101,7 @@ func _build_visual() -> void:
 	smat.emission_energy_multiplier = 2.2
 	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	smat.no_depth_test = true
+	smat.cull_mode = BaseMaterial3D.CULL_FRONT
 	sil.material_override = smat
 	sil.position = Vector3(0, 0.95, 0)
 	sil.scale = Vector3.ONE * 1.07
@@ -128,11 +133,11 @@ func _rebuild_held() -> void:
 	glowm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	if not bool(wbase.get("projectile", true)):
 		held_kind = "blade"
-		_hbox(Vector3(0.16, 0.2, 0.16), Vector3(0.5, 1.0, 0.35), darkm)
-		_hbox(Vector3(0.07, 0.1, 1.9), Vector3(0.5, 1.05, 1.3), darkm)
-		_hbox(Vector3(0.03, 0.05, 1.9), Vector3(0.5, 1.12, 1.3), glowm)
+		_hbox(Vector3(0.16, 0.2, 0.16), Vector3(0.58, 1.0, 0.4), darkm)
+		_hbox(Vector3(0.07, 0.1, 1.9), Vector3(0.62, 1.05, 1.35), darkm)
+		_hbox(Vector3(0.03, 0.05, 1.9), Vector3(0.62, 1.12, 1.35), glowm)
 		if String(weapon.get("weapon_id", "")) == "whip":
-			_hbox(Vector3(0.05, 0.05, 2.6), Vector3(0.5, 0.9, 1.6), glowm)
+			_hbox(Vector3(0.05, 0.05, 2.6), Vector3(0.58, 0.9, 1.7), glowm)
 	else:
 		held_kind = "gun"
 		var wid := String(weapon.get("weapon_id", "smg"))
@@ -211,6 +216,13 @@ func _physics_process(delta: float) -> void:
 	fire_cd -= delta
 	dash_cd -= delta
 	iframes -= delta
+	if overheated:
+		overheat_t -= delta
+		if overheat_t <= 0.0:
+			overheated = false
+			heat = 50.0
+	else:
+		heat = maxf(0.0, heat - 40.0 * delta)
 	if dash_time > 0.0:
 		dash_time -= delta
 	for k in prog_cds.keys():
@@ -248,6 +260,9 @@ func _physics_process(delta: float) -> void:
 		cast_program(0)
 	if Input.is_action_just_pressed("program_2"):
 		cast_program(1)
+	if InputMap.has_action("interact") and Input.is_action_just_pressed("interact"):
+		if dungeon != null and dungeon.has_method("try_hack"):
+			dungeon.try_hack()
 	if Input.is_action_pressed("fire") and fire_cd <= 0.0:
 		try_fire()
 	# cloak visual + walk bob
@@ -281,8 +296,15 @@ func _update_aim() -> void:
 				aim_dir = d.normalized()
 
 func try_fire() -> void:
+	if overheated:
+		return
 	var rate: float = float(wbase.get("rate", 4.0)) * stat_rate_mult()
 	fire_cd = 1.0 / rate
+	shots_fired += 1
+	if bool(wbase.get("projectile", true)):
+		heat += 100.0 / 30.0 if String(wbase.get("slot", "primary")) == "primary" else 100.0 / 8.0
+		if heat >= 100.0:
+			_trigger_overheat()
 	var pellets: int = int(wbase.get("pellets", 1))
 	for a in weapon.get("affixes", []):
 		if String(a["id"]) == "multishot":
@@ -309,6 +331,13 @@ func try_fire() -> void:
 		AudioDirector.play("melee")
 		_melee_arc(pellets)
 
+func _lane_clear(space: PhysicsDirectSpaceState3D, to_pos: Vector3) -> bool:
+	var params := PhysicsRayQueryParameters3D.create(
+		global_position + Vector3(0, 1.1, 0), to_pos + Vector3(0, 1.0, 0))
+	params.collision_mask = 1
+	params.exclude = [get_rid()]
+	return space.intersect_ray(params).is_empty()
+
 func _weapon_tags() -> Array:
 	var tags: Array = []
 	for a in weapon.get("affixes", []):
@@ -327,6 +356,7 @@ func _melee_arc(pellets: int) -> void:
 	var dtype := String(wbase.get("dmg_type", "kinetic"))
 	var chain: int = int(wbase.get("chain", 0))
 	var wave := 0
+	var space := get_world_3d().direct_space_state
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not (e is WCEnemy):
 			continue
@@ -335,6 +365,8 @@ func _melee_arc(pellets: int) -> void:
 		if to.length() > wrange + 0.6:
 			continue
 		if to.normalized().angle_to(aim_dir) > 1.1:
+			continue
+		if not _lane_clear(space, (e as Node3D).global_position):
 			continue
 		(e as WCEnemy).take_hit(dmg, dtype, _weapon_tags() + ["melee"], global_position)
 		wave += 1
@@ -354,12 +386,23 @@ func _melee_arc(pellets: int) -> void:
 			continue
 		if cto.normalized().angle_to(aim_dir) > 1.1:
 			continue
+		if not _lane_clear(space, (cr as Node3D).global_position):
+			continue
 		(cr as WCPropCrate).take_hit(dmg, dtype, _weapon_tags() + ["melee"], global_position)
 		wave += 1
 	if dungeon != null and dungeon.has_method("spawn_slash_fx"):
 		dungeon.spawn_slash_fx(global_position + aim_dir * 1.6, aim_dir,
 			GameDB.DAMAGE_COLORS.get(dtype, Color.WHITE))
+	_swing_held()
 	fired.emit()
+
+func _swing_held() -> void:
+	## Visible swing: the held blade sweeps across in an arc.
+	if held == null or not is_instance_valid(held):
+		return
+	held.rotation.y = -0.7
+	var tw := held.create_tween()
+	tw.tween_property(held, "rotation:y", 0.7, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func swap_weapon() -> void:
 	var sec: Dictionary = RunManager.loadout.get("secondary", {})
@@ -390,6 +433,16 @@ func equip_item(item: Dictionary, slot: String) -> void:
 		dungeon.float_text(global_position + Vector3(0, 2.4, 0),
 			"EQUIPPED [%s]: %s" % [slot.to_upper(), String(item.get("name", "?"))],
 			GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE))
+
+func _trigger_overheat() -> void:
+	overheated = true
+	overheat_t = 1.2
+	heat = 100.0
+	AudioDirector.play("hurt", 1.4)
+	if dungeon != null and dungeon.has_method("float_text"):
+		dungeon.float_text(global_position + Vector3(0, 2.4, 0), "OVERHEAT!", Color(1.0, 0.5, 0.15))
+	if dungeon != null and dungeon.has_method("spawn_impact_fx"):
+		dungeon.spawn_impact_fx(global_position + Vector3(0, 1.2, 0), Color(1.0, 0.6, 0.2))
 
 func try_dash() -> void:
 	if dash_cd > 0.0:

@@ -88,41 +88,70 @@ func _synth(name: String) -> AudioStreamWAV:
 	return wav
 
 func _start_music() -> void:
-	## Generative darksynth: minor-key bass pulse + hats + detuned pad loop.
+	## Generative darksynth, 64-step progression: Am – F – C – G roots,
+	## soft sine/triangle bass, detuned pad chords, kick/hat/snare kit,
+	## sparse pentatonic plucks, noise riser into the loop point.
 	var rate := 22050
-	var bpm := 104.0
-	var beats := 16
-	var dur: float = beats * 60.0 / bpm
+	var bpm := 100.0
+	var steps := 64
+	var step_dur: float = 60.0 / bpm / 2.0  # eighth notes
+	var dur: float = steps * step_dur
 	var n := int(rate * dur)
-	var bass := PackedByteArray()
-	bass.resize(n)
-	var lead := PackedByteArray()
-	lead.resize(n)
-	var root := 55.0  # A1
-	var seq := [0, 0, 3, 0, 5, 0, 3, 2, 0, 0, 3, 0, 7, 5, 3, 2]
+	var low := PackedByteArray()
+	low.resize(n)
+	var high := PackedByteArray()
+	high.resize(n)
+	# chord roots (semitones from A1) + minor/major third per 16-step block
+	var roots := [0, -4, 3, -2]  # Am F C G
+	var minors := [true, true, false, false]
+	# fixed sparse pluck melody (step -> semitone offset)
+	var pluck := {2: 12, 7: 15, 11: 19, 18: 12, 22: 10, 27: 15, 34: 19,
+		39: 22, 43: 19, 50: 15, 55: 12, 59: 10}
 	for i in n:
 		var t := float(i) / rate
-		var beat := int(t / (60.0 / bpm)) % 16
-		var semis: int = seq[beat]
-		var f: float = root * pow(2.0, semis / 12.0)
-		var gate: float = 1.0 if fmod(t, 60.0 / bpm) < 0.42 * (60.0 / bpm) else 0.15
-		var b: float = sin(TAU * f * t) * 0.7 + sin(TAU * f * 2.0 * t) * 0.3
-		bass[i] = int(clampf(b * gate * 0.8, -1.0, 1.0) * 100.0 + 128.0)
-		var hat: float = randf_range(-1.0, 1.0) if fmod(t, (60.0 / bpm) / 2.0) < 0.03 else 0.0
-		var pad: float = sin(TAU * f * 4.0 * t) * 0.15 + sin(TAU * f * 4.02 * t) * 0.15
-		lead[i] = int(clampf(hat * 0.35 + pad, -1.0, 1.0) * 90.0 + 128.0)
+		var step := int(t / step_dur) % steps
+		var block := step / 16
+		var rf: float = 55.0 * pow(2.0, float(roots[block]) / 12.0)
+		var third: float = rf * pow(2.0, 3.0 / 12.0 if minors[block] else 4.0 / 12.0)
+		var fifth: float = rf * pow(2.0, 7.0 / 12.0)
+		var in_step: float = fmod(t, step_dur)
+		# --- low layer: soft bass + kick + pad root ---
+		var gate: float = 1.0 if in_step < step_dur * 0.7 else 0.25
+		var tri: float = sin(TAU * rf * t) * 0.65 + sin(TAU * rf * 2.0 * t) * 0.2 + sin(TAU * rf * 3.0 * t) * 0.08
+		var kick := 0.0
+		if step % 4 == 0 and in_step < 0.14:
+			var kf: float = 120.0 - 600.0 * in_step
+			kick = sin(TAU * maxf(kf, 38.0) * t) * (1.0 - in_step / 0.14) * 0.9
+		var pad: float = (sin(TAU * rf * 2.0 * t) + sin(TAU * third * 2.0 * t + 0.4) + sin(TAU * fifth * 2.0 * t + 0.8)) * 0.09
+		low[i] = int(clampf(tri * gate * 0.55 + kick + pad, -1.0, 1.0) * 100.0 + 128.0)
+		# --- high layer: hats + snare + pluck + riser ---
+		var hat := 0.0
+		if step % 2 == 1 and in_step < 0.03:
+			hat = randf_range(-1.0, 1.0) * (0.5 if step % 8 == 7 else 0.28)
+		var snare := 0.0
+		if (step % 16 == 4 or step % 16 == 12) and in_step < 0.12:
+			snare = randf_range(-1.0, 1.0) * (1.0 - in_step / 0.12) * 0.4
+		var pluck_s := 0.0
+		if pluck.has(step):
+			var pf: float = 220.0 * pow(2.0, float(pluck[step]) / 12.0)
+			if in_step < 0.4:
+				pluck_s = (sin(TAU * pf * t) * 0.6 + sin(TAU * pf * 2.0 * t) * 0.25) * (1.0 - in_step / 0.4) * 0.5
+		var riser := 0.0
+		if step >= 60:
+			riser = randf_range(-1.0, 1.0) * float(step - 60) / 4.0 * 0.22
+		high[i] = int(clampf(hat + snare + pluck_s + riser, -1.0, 1.0) * 90.0 + 128.0)
 	var wb := AudioStreamWAV.new()
 	wb.format = AudioStreamWAV.FORMAT_8_BITS
 	wb.mix_rate = rate
 	wb.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	wb.loop_end = n
-	wb.data = bass
+	wb.data = low
 	var wl := AudioStreamWAV.new()
 	wl.format = AudioStreamWAV.FORMAT_8_BITS
 	wl.mix_rate = rate
 	wl.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	wl.loop_end = n
-	wl.data = lead
+	wl.data = high
 	music_bass.stream = wb
 	music_player.stream = wl
 	music_bass.play()

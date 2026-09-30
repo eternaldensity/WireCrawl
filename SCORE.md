@@ -2,7 +2,13 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.5.4 — offset diagnostics (this commit)
+## v0.5.5 — borderless window vs stale chrome offset (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 8.8 | Borderless window removes title-bar decoration math entirely (fixed ~40px input offset from stale client-rect on focus/display changes). |
+| **Mean** | **8.72** | Unchanged. |
+
+## v0.5.4 — offset diagnostics
 | Axis | Score | Notes |
 |---|---|---|
 | Usability | 8.8 | Display-info readout in Settings (window/view/canvas transform); active tab filled vs hover border; explicit hidpi. |

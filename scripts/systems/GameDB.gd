@@ -3,7 +3,7 @@ extends Node
 ## Weapons, armor sets, programs, origins, enemies, contracts, synergies, tuning.
 ## Pure data + balance formulas. No scene-tree dependencies.
 
-const VERSION := "0.12"
+const VERSION := "0.13"
 
 const DAMAGE_TYPES := ["kinetic", "thermal", "volt", "cryo", "toxic", "void"]
 const DAMAGE_COLORS := {

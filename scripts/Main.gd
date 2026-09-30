@@ -132,7 +132,7 @@ func show_title() -> void:
 	margin.add_theme_constant_override("margin_left", 32)
 	margin.add_theme_constant_override("margin_right", 32)
 	margin.add_theme_constant_override("margin_top", 18)
-	margin.add_theme_constant_override("margin_bottom", 18)
+	margin.add_theme_constant_override("margin_bottom", 26)
 	screen.add_child(margin)
 	var shell := VBoxContainer.new()
 	shell.add_theme_constant_override("separation", 12)
@@ -146,12 +146,12 @@ func show_title() -> void:
 	sub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(sub)
 	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 20)
+	body.add_theme_constant_override("separation", 26)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	shell.add_child(body)
 	rail_box = VBoxContainer.new()
 	rail_box.custom_minimum_size = Vector2(250, 0)
-	rail_box.add_theme_constant_override("separation", 8)
+	rail_box.add_theme_constant_override("separation", 11)
 	body.add_child(rail_box)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -161,7 +161,7 @@ func show_title() -> void:
 	tab_scroll = scroll
 	tab_content = VBoxContainer.new()
 	tab_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_content.add_theme_constant_override("separation", 12)
+	tab_content.add_theme_constant_override("separation", 16)
 	scroll.add_child(tab_content)
 	_refresh_title()
 	fade_in(0.4)
@@ -226,7 +226,7 @@ func _render_tab() -> void:
 func _tab_deploy() -> void:
 	tab_content.add_child(WCTheme.section("CHOOSE YOUR RIG", NEON_YELLOW))
 	var orig_row := HBoxContainer.new()
-	orig_row.add_theme_constant_override("separation", 10)
+	orig_row.add_theme_constant_override("separation", 14)
 	tab_content.add_child(orig_row)
 	for oid in ["solo", "netrunner", "techie"]:
 		orig_row.add_child(_origin_card(oid))
@@ -237,7 +237,7 @@ func _tab_deploy() -> void:
 		tab_content.add_child(_contract_row(i, c, i < unlocked))
 	tab_content.add_child(WCTheme.section("PROGRAMS — Q / E slots", NEON_YELLOW))
 	var prog_row := HBoxContainer.new()
-	prog_row.add_theme_constant_override("separation", 8)
+	prog_row.add_theme_constant_override("separation", 12)
 	tab_content.add_child(prog_row)
 	prog_row.add_child(_program_picker(1))
 	prog_row.add_child(_program_picker(2))

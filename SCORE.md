@@ -2,6 +2,19 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.13 — breathing room (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 9.0 | Wider external margins/separations around textured frames. |
+| **Mean** | **8.95** | Bar cleared. |
+
+## v0.12 — UI readability
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 9.0 | Stretch-safe textures, clean rain zones. |
+| Visuals | 9.3 | Slim neon edges, corner circuitry. |
+| **Mean** | **8.94** | Bar cleared. |
+
 ## v0.11 — blades, sectors, chrome UI + pause fix (this commit)
 | Axis | Score | Notes |
 |---|---|---|

@@ -15,6 +15,7 @@ var boss_label: Label
 var boss_box: Control
 var heat_bar: ProgressBar
 var stamina_bar: ProgressBar
+var radial: RadialMag
 var interact_label: Label
 var _obj_base := "Reach the EXIT uplink"
 var _obj_t := 0.0
@@ -40,6 +41,45 @@ func _ready() -> void:
 	RunManager.objective_changed.connect(func(t): _obj_base = t)
 	RunManager.leveled_up.connect(func(lv): announce("LEVEL UP — %d" % lv, Color(0.976, 0.941, 0.008)))
 
+class RadialMag extends Control:
+	## Segmented radial magazine: one arc segment per round, center count.
+	var mag := 30
+	var ammo := 30
+	var reloading := false
+	var col := Color(0.02, 0.85, 0.91)
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.5 - 4.0
+		draw_circle(c, r + 2.0, Color(0.015, 0.015, 0.03, 0.85))
+		var n := maxi(mag, 1)
+		var low := ammo <= n / 4
+		for i in mini(mag, 40):
+			var a0 := -PI * 0.5 + TAU * float(i) / float(n)
+			var a1 := a0 + TAU / float(n) * 0.68
+			var scol := Color(0.22, 0.24, 0.3)
+			if not reloading and i < ammo:
+				scol = Color(1.0, 0.3, 0.2) if low else col
+			draw_arc(c, r - 3.0, a0, a1, 6, scol, 4.5)
+		var f := get_theme_default_font()
+		var txt := ".." if reloading else str(ammo)
+		var ts := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17)
+		draw_string(f, c - Vector2(ts.x * 0.5, -ts.y * 0.35),
+			txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17,
+			Color(1.0, 0.6, 0.2) if reloading else Color.WHITE)
+		if reloading:
+			var sa := fmod(float(Time.get_ticks_msec()) / 280.0, TAU)
+			draw_arc(c, r - 3.0, sa, sa + 1.1, 12, Color.WHITE, 4.5)
+
+func _style_bar(bar: ProgressBar, fill_col: Color) -> void:
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.015, 0.015, 0.03, 0.85)
+	bg.set_corner_radius_all(2)
+	bar.add_theme_stylebox_override("background", bg)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = fill_col
+	fill.set_corner_radius_all(2)
+	bar.add_theme_stylebox_override("fill", fill)
+
 func _panel_style(border: Color) -> StyleBox:
 	return WCTheme.panel(border, Color(0.02, 0.02, 0.05, 0.85))
 
@@ -62,23 +102,30 @@ func _build() -> void:
 	hp_bar = ProgressBar.new()
 	hp_bar.custom_minimum_size = Vector2(300, 16)
 	hp_bar.show_percentage = false
+	_style_bar(hp_bar, Color(1.0, 0.16, 0.43))
 	vitals.add_child(hp_bar)
 	en_bar = ProgressBar.new()
 	en_bar.custom_minimum_size = Vector2(300, 9)
 	en_bar.show_percentage = false
+	_style_bar(en_bar, Color(0.02, 0.85, 0.91))
 	vitals.add_child(en_bar)
 	heat_bar = ProgressBar.new()
 	heat_bar.custom_minimum_size = Vector2(300, 6)
 	heat_bar.show_percentage = false
 	heat_bar.max_value = 100.0
 	heat_bar.value = 0.0
+	_style_bar(heat_bar, Color(1.0, 0.55, 0.1))
 	vitals.add_child(heat_bar)
 	stamina_bar = ProgressBar.new()
 	stamina_bar.custom_minimum_size = Vector2(300, 6)
 	stamina_bar.show_percentage = false
 	stamina_bar.max_value = 100.0
 	stamina_bar.value = 100.0
+	_style_bar(stamina_bar, Color(0.45, 1.0, 0.35))
 	vitals.add_child(stamina_bar)
+	radial = RadialMag.new()
+	radial.custom_minimum_size = Vector2(76, 76)
+	vitals.add_child(radial)
 	obj_label = Label.new()
 	obj_label.add_theme_font_size_override("font_size", 14)
 	obj_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.6))
@@ -190,10 +237,8 @@ func _process(delta: float) -> void:
 		var wp: Dictionary = dungeon.player.weapon
 		var ws: Dictionary = RunManager.loadout.get("secondary", {})
 		var ammo_txt := ""
-		if dungeon.player.held_kind == "gun":
-			ammo_txt = " %d/%d" % [int(wp.get("ammo", 0)), dungeon.player.mag_size()]
-			if dungeon.player.reloading:
-				ammo_txt += " ⟳"
+		if dungeon.player.held_kind == "gun" and dungeon.player.reloading:
+			ammo_txt = " ⟳"
 		weapon_label.text = "▶ %s%s (%.0f)  |  %s (%.0f)  [TAB]" % [
 			String(wp.get("name", "?")), ammo_txt, float(wp.get("dps", 0)),
 			String(ws.get("name", "—")), float(ws.get("dps", 0))]
@@ -204,6 +249,11 @@ func _process(delta: float) -> void:
 		heat_bar.modulate = Color(1.0, 0.3, 0.15) if p.overheated else Color.WHITE
 		stamina_bar.max_value = p.max_stamina()
 		stamina_bar.value = p.stamina
+		radial.mag = p.mag_size()
+		radial.ammo = int(p.weapon.get("ammo", 0))
+		radial.reloading = p.reloading
+		radial.col = GameDB.DAMAGE_COLORS.get(String(p.wbase.get("dmg_type", "kinetic")), Color.WHITE)
+		radial.queue_redraw()
 		_update_prog_labels(p)
 
 func _update_prog_labels(p: WCPlayer) -> void:
@@ -232,14 +282,28 @@ func _build_loot_panel() -> void:
 	var s := _panel_style(Color(0.976, 0.941, 0.008))
 	loot_panel.add_theme_stylebox_override("panel", s)
 	add_child(loot_panel)
+	var pm := MarginContainer.new()
+	pm.add_theme_constant_override("margin_left", 18)
+	pm.add_theme_constant_override("margin_right", 18)
+	pm.add_theme_constant_override("margin_top", 12)
+	pm.add_theme_constant_override("margin_bottom", 10)
+	loot_panel.add_child(pm)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 4)
-	loot_panel.add_child(v)
+	v.add_theme_constant_override("separation", 6)
+	pm.add_child(v)
 	loot_rich = RichTextLabel.new()
 	loot_rich.bbcode_enabled = true
 	loot_rich.fit_content = true
 	loot_rich.scroll_active = false
-	loot_rich.custom_minimum_size = Vector2(500, 90)
+	loot_rich.custom_minimum_size = Vector2(520, 104)
+	var backing := StyleBoxFlat.new()
+	backing.bg_color = Color(0.008, 0.008, 0.02, 0.88)
+	backing.set_corner_radius_all(3)
+	backing.content_margin_left = 8
+	backing.content_margin_right = 8
+	backing.content_margin_top = 6
+	backing.content_margin_bottom = 6
+	loot_rich.add_theme_stylebox_override("normal", backing)
 	v.add_child(loot_rich)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -278,9 +342,12 @@ func _advance_loot() -> void:
 	var ndps := float(pending_loot.get("dps", 0))
 	var best := maxf(float(cur1.get("dps", 0)), float(cur2.get("dps", 0)))
 	var verdict := "[color=#3dff66]UPGRADE[/color]" if ndps > best * 1.05 else "[color=#ff5f5f]SIDE-GRADE[/color]"
-	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color] %s\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
+	var queued := ""
+	if not loot_queue.is_empty():
+		queued = "  [color=#8888aa]+%d more in queue[/color]" % loot_queue.size()
+	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color] %s%s\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
 		col.to_html(false), String(pending_loot.get("name", "?")),
-		String(pending_loot.get("rarity", "")).capitalize(), ndps, verdict,
+		String(pending_loot.get("rarity", "")).capitalize(), ndps, verdict, queued,
 		String(cur1.get("name", "—")), float(cur1.get("dps", 0)),
 		String(cur2.get("name", "—")), float(cur2.get("dps", 0))]
 	loot_panel.visible = true

@@ -299,6 +299,8 @@ func _test_dungeon_boot() -> void:
 	hud.choose_loot("secondary")
 	_check(String(hud.pending_loot.get("weapon_id", "")) == "katana", "loot_advances",
 		"(now %s)" % String(hud.pending_loot.get("weapon_id", "?")))
+	_check(hud.radial != null and hud.radial.mag > 0, "radial_mag",
+		"(mag=%d ammo=%d)" % [hud.radial.mag, hud.radial.ammo])
 	hud.queue_free()
 	# terminals: teleport to one and hack it
 	if not dng.terminals.is_empty():

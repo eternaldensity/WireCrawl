@@ -26,6 +26,7 @@ var extracted := false
 var vault_center := Vector3.ZERO
 var has_vault := false
 var vault_item := {}
+var _offer_n := 0
 var terminals: Array = []
 var zone_names: Array = []
 var cur_zone := 0
@@ -963,8 +964,9 @@ func system_shock(pos: Vector3, power: float) -> void:
 func offer_loot(item: Dictionary) -> void:
 	## Loot choice flows to the HUD panel ([1]/[2]/click); no auto-equip.
 	loot_offered.emit(item)
+	_offer_n += 1
 	if player != null and is_instance_valid(player):
-		float_text(player.global_position + Vector3(0, 3.0, 0),
+		float_text(player.global_position + Vector3(0, 3.0 + float(_offer_n % 3) * 0.8, 0),
 			"◈ " + String(item["name"]), GameDB.RARITY_COLORS[item["rarity"]])
 
 # ---------------- FX ----------------

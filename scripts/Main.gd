@@ -115,6 +115,7 @@ func show_title() -> void:
 	shell.add_child(head)
 	head.add_child(WCTheme.header("WIRECRAWL", NEON_PINK, 46))
 	var sub := WCTheme.body("NEON ABYSS — a cyberpunk dungeon-crawler", 17, NEON_CYAN)
+	sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(sub)
 	var body := HBoxContainer.new()
@@ -153,7 +154,6 @@ func _render_rail() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if tab == String(t[0]):
 			WCTheme.style_button(b, t[2])
-			b.disabled = true
 		var id := String(t[0])
 		b.pressed.connect(func():
 			tab = id

@@ -2,7 +2,14 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.5 — UI/UX pass (this commit)
+## v0.5.1 — title layout hotfix (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 8.8 | Fixed 969px header collapse (subtitle autowrap without width); active tab no longer greyed. Layout probe added. |
+| Visuals | 8.9 | Unchanged. |
+| **Mean** | **8.72** | Unchanged. |
+
+## v0.5 — UI/UX pass
 | Axis | Score | Notes |
 |---|---|---|
 | Gameplay | 8.6 | Unchanged systems. |

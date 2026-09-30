@@ -43,6 +43,7 @@ and all audio are generated in code.
 python3 tests/test_balance.py                    # balance math mirror
 godot --headless --path . --import               # project import, must be script-error free
 godot --headless --path . res://tests/SimTest.tscn  # systems sim + dungeon boot test
+godot --headless --path . res://tests/LayoutProbe.tscn  # title layout rect dump (see tests/LayoutProbe.gd)
 cd rust_ext && cargo test                        # rust core (needs cargo + C linker)
 ```
 The compiled Rust core is optional: copy

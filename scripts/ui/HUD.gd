@@ -50,25 +50,37 @@ class RadialMag extends Control:
 	func _draw() -> void:
 		var c := size * 0.5
 		var r := minf(size.x, size.y) * 0.5 - 4.0
-		draw_circle(c, r + 2.0, Color(0.015, 0.015, 0.03, 0.85))
+		draw_circle(c, r + 2.0, Color(0.008, 0.008, 0.02, 0.9))
 		var n := maxi(mag, 1)
 		var low := ammo <= n / 4
+		var pulse := 1.0
+		if low and not reloading:
+			pulse = 0.7 + 0.3 * sin(float(Time.get_ticks_msec()) / 150.0)
+		var track := col.lerp(Color.WHITE, 0.15) if not low else Color(1.0, 0.25, 0.15)
+		draw_arc(c, r, 0, TAU, 64, Color(track.r, track.g, track.b, 0.35), 2.0)
 		for i in mini(mag, 40):
 			var a0 := -PI * 0.5 + TAU * float(i) / float(n)
 			var a1 := a0 + TAU / float(n) * 0.68
-			var scol := Color(0.22, 0.24, 0.3)
+			var scol := Color(0.2, 0.22, 0.28, 0.9)
 			if not reloading and i < ammo:
-				scol = Color(1.0, 0.3, 0.2) if low else col
-			draw_arc(c, r - 3.0, a0, a1, 6, scol, 4.5)
+				var head := 1.0 - 0.45 * float(i) / float(maxi(n - 1, 1))
+				var base := col.lerp(Color.WHITE, 0.3)
+				if low:
+					base = Color(1.0, 0.3, 0.2)
+				scol = Color(base.r * head * pulse, base.g * head * pulse, base.b * head * pulse, 1.0)
+			draw_arc(c, r - 4.0, a0, a1, 6, scol, 5.0)
 		var f := get_theme_default_font()
 		var txt := ".." if reloading else str(ammo)
-		var ts := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17)
+		var ts := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 		draw_string(f, c - Vector2(ts.x * 0.5, -ts.y * 0.35),
-			txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 17,
-			Color(1.0, 0.6, 0.2) if reloading else Color.WHITE)
+			txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+			Color(1.0, 0.65, 0.25) if reloading else Color.WHITE)
+		var ts2 := f.get_string_size("RNDS", HORIZONTAL_ALIGNMENT_LEFT, -1, 9)
+		draw_string(f, c - Vector2(ts2.x * 0.5, -ts.y * 0.35 - 12.0),
+			"RNDS", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.55, 0.6, 0.75))
 		if reloading:
 			var sa := fmod(float(Time.get_ticks_msec()) / 280.0, TAU)
-			draw_arc(c, r - 3.0, sa, sa + 1.1, 12, Color.WHITE, 4.5)
+			draw_arc(c, r - 4.0, sa, sa + 1.1, 12, Color.WHITE, 5.0)
 
 func _style_bar(bar: ProgressBar, fill_col: Color) -> void:
 	var bg := StyleBoxFlat.new()
@@ -90,12 +102,23 @@ func _build() -> void:
 	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
 	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(vignette)
-	# top-left vitals
+	# top-left vitals in a dark backing panel for readability over the floor
+	var vital_box := PanelContainer.new()
+	vital_box.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	vital_box.position = Vector2(14, 12)
+	var vb := StyleBoxFlat.new()
+	vb.bg_color = Color(0.008, 0.008, 0.02, 0.78)
+	vb.border_color = Color(0.35, 0.38, 0.5, 0.9)
+	vb.set_border_width_all(1)
+	vb.set_corner_radius_all(5)
+	vb.content_margin_left = 10
+	vb.content_margin_right = 10
+	vb.content_margin_top = 8
+	vb.content_margin_bottom = 8
+	vital_box.add_theme_stylebox_override("panel", vb)
+	add_child(vital_box)
 	var vitals := VBoxContainer.new()
-	vitals.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	vitals.position = Vector2(14, 12)
-	vitals.add_theme_constant_override("separation", 4)
-	add_child(vitals)
+	vital_box.add_child(vitals)
 	hp_label = Label.new()
 	hp_label.add_theme_font_size_override("font_size", 15)
 	vitals.add_child(hp_label)

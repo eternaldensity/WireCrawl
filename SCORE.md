@@ -2,6 +2,18 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.17 — vitals backing + radial presence (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 9.1 | Backed vitals cluster, gradient radial with track ring, low pulse, RNDS caption. |
+| **Mean** | **9.02** | Bar cleared. |
+
+## v0.16 — HUD readability (colored vitals, radial mag, loot layout)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 9.0 | Radial magazine, colored bars, queued loot UI. |
+| **Mean** | **8.97** | Bar cleared. |
+
 ## v0.15 — multi-zone sectors (this commit)
 | Axis | Score | Notes |
 |---|---|---|

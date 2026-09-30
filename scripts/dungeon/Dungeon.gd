@@ -32,7 +32,21 @@ func setup(p_contract: Dictionary) -> void:
 	contract = p_contract
 	threat = int(p_contract.get("threat", 1))
 	var room_target: int = int(p_contract.get("rooms", 9))
-	layout = DungeonGen.generate(threat, room_target)
+	layout = _generate_layout(threat, room_target)
+
+static func rust_available() -> bool:
+	return ClassDB.class_exists("WCDungeonRust")
+
+func _generate_layout(p_threat: int, room_target: int) -> Dictionary:
+	## Prefer the compiled Rust core when present; GDScript fallback otherwise.
+	if rust_available():
+		var rust = ClassDB.instantiate("WCDungeonRust")
+		var seed := randi()
+		var d: Dictionary = rust.call("generate", seed, p_threat, room_target)
+		rust.free()
+		if not d.is_empty() and (d.get("rooms") as Array).size() >= room_target:
+			return d
+	return DungeonGen.generate(p_threat, room_target)
 
 func _ready() -> void:
 	_build_environment()
@@ -335,6 +349,39 @@ func _build_props(ox: float, oz: float) -> void:
 			placed += 1
 			if placed > 40:
 				break
+		# cover pillars in large rooms (combat geometry)
+		if room.size.x >= 10 and room.size.y >= 9 and rng.randf() < 0.55:
+			var center := Vector2i(room.position.x + room.size.x / 2, room.position.y + room.size.y / 2)
+			for _pi in rng.randi_range(1, 2):
+				var pc := Vector2i(rng.randi_range(room.position.x + 2, room.position.x + room.size.x - 3),
+					rng.randi_range(room.position.y + 2, room.position.y + room.size.y - 3))
+				if pc == center or pc == center + Vector2i(1, 0):
+					continue
+				if tiles[pc.y * w + pc.x] == DungeonGen.TILE_VOID:
+					continue
+				_pillar(props, _cell_to_world(pc), rng)
+
+func _pillar(parent: Node, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	var pillar := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(2.2, 4.2, 2.2)
+	pillar.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.04, 0.04, 0.09)
+	mat.emission_enabled = true
+	mat.emission = Color(0.02, 0.85, 0.91) if rng.randf() < 0.5 else Color(1.0, 0.16, 0.43)
+	mat.emission_energy_multiplier = 0.7
+	mat.metallic = 0.6
+	mat.roughness = 0.45
+	pillar.material_override = mat
+	pillar.position = pos + Vector3(0, 2.1, 0)
+	parent.add_child(pillar)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(2.2, 4.2, 2.2)
+	cs.shape = bs
+	cs.position = pillar.position
+	parent.add_child(cs)
 
 func _holo_pillar(parent: Node, pos: Vector3, col: Color) -> void:
 	var pillar := MeshInstance3D.new()
@@ -452,6 +499,9 @@ func _spawn_encounters() -> void:
 			var ek := _pick_enemy(rng, keys)
 			var e := WCEnemy.spawn(self, ek, _cell_to_world(cell) + Vector3(0, 0.5, 0), threat)
 			e.dungeon = self
+			if rng.randf() < 0.12 and not e.is_boss:
+				e.make_elite()
+				float_text(e.global_position + Vector3(0, 2.6, 0), "★ ELITE", Color(0.976, 0.941, 0.008))
 			enemies_alive += 1
 		# loot chest in loot rooms
 		if _room_has_tile(room, DungeonGen.TILE_LOOT):
@@ -546,13 +596,15 @@ func on_enemy_died(e: WCEnemy) -> void:
 		WCPickup.spawn(self, e.global_position, "health", 15)
 	if rng.randf() < 0.12:
 		WCPickup.spawn(self, e.global_position, "energy", 20)
-	var drop_chance := 0.10 + 0.03 * threat + (0.5 if e.is_boss else 0.0)
+	var drop_chance := 0.10 + 0.03 * threat + (0.5 if e.is_boss else 0.0) + (0.35 if e.elite else 0.0)
 	if rng.randf() < drop_chance:
-		var item := LootFactory.roll_weapon(threat, RunManager.luck + (1.0 if e.is_boss else 0.0))
+		var item := LootFactory.roll_weapon(threat, RunManager.luck + (1.0 if e.is_boss else 0.0) + (0.5 if e.elite else 0.0))
 		RunManager.register_loot(item)
 		WCPickup.spawn(self, e.global_position, "loot", 0, item)
 		float_text(e.global_position + Vector3(0, 3, 0),
 			"◈ " + String(item["name"]), GameDB.RARITY_COLORS[item["rarity"]])
+	if e.elite:
+		float_text(e.global_position + Vector3(0, 4, 0), "ELITE DOWN", Color(0.976, 0.941, 0.008))
 	if e.is_boss:
 		RunManager.boss_dead = true
 		float_text(e.global_position + Vector3(0, 4, 0), "TARGET DOWN — EXTRACT!", Color(0.3, 1.0, 0.5))
@@ -619,15 +671,11 @@ func system_shock(pos: Vector3, power: float) -> void:
 		best.statuses["shocked"] = 3.0
 
 func offer_loot(item: Dictionary) -> void:
+	## Loot choice flows to the HUD panel ([1]/[2]/click); no auto-equip.
 	loot_offered.emit(item)
-	# auto-compare: equip if strictly better DPS and same-or-better rarity tier
-	var cur: Dictionary = RunManager.loadout.get("primary", {})
-	if cur.is_empty() or float(item.get("dps", 0)) > float(cur.get("dps", 0)) * 1.08:
-		RunManager.loadout["primary"] = item
-		player.weapon = item
-		player.wbase = GameDB.WEAPONS[String(item.get("weapon_id", "smg"))]
-		float_text(player.global_position + Vector3(0, 2.6, 0),
-			"AUTO-EQUIPPED: " + String(item["name"]), GameDB.RARITY_COLORS[item["rarity"]])
+	if player != null and is_instance_valid(player):
+		float_text(player.global_position + Vector3(0, 3.0, 0),
+			"◈ " + String(item["name"]), GameDB.RARITY_COLORS[item["rarity"]])
 
 # ---------------- FX ----------------
 func hitstop(scale := 0.25, dur := 0.06) -> void:
@@ -637,6 +685,23 @@ func hitstop(scale := 0.25, dur := 0.06) -> void:
 	await get_tree().create_timer(dur, true, false, true).timeout
 	if token == _slowmo_token and not get_tree().paused:
 		Engine.time_scale = 1.0
+
+func spawn_damage_number(pos: Vector3, amount: float, killing := false) -> void:
+	var label := Label3D.new()
+	label.text = "%d" % int(amount)
+	label.font_size = 96 if killing else 48
+	label.pixel_size = 0.008
+	label.modulate = Color(0.976, 0.941, 0.008) if killing else Color(1, 1, 1, 0.9)
+	label.outline_size = 8
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	float_layer.add_child(label)
+	label.global_position = pos + Vector3(randf_range(-0.4, 0.4), 0, 0)
+	var tw := label.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(label, "position:y", label.position.y + 1.2, 0.55)
+	tw.tween_property(label, "modulate:a", 0.0, 0.55)
+	tw.chain().tween_callback(label.queue_free)
 
 func float_text(pos: Vector3, text: String, color: Color) -> void:
 	var label := Label3D.new()

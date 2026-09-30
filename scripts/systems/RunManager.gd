@@ -38,10 +38,10 @@ var rooms_cleared := 0
 var boss_spawned := false
 var boss_dead := false
 var extracted := false
-var loadout := {"primary": {}, "armor": [], "programs": ["blink"]}
+var loadout := {"primary": {}, "secondary": {}, "armor": [], "programs": ["blink"]}
 var statuses := {}
 
-func start_run(p_origin: String, p_contract: Dictionary, primary: Dictionary, armor_pieces: Array, programs: Array) -> void:
+func start_run(p_origin: String, p_contract: Dictionary, primary: Dictionary, secondary: Dictionary, armor_pieces: Array, programs: Array) -> void:
 	origin = p_origin
 	contract = p_contract
 	threat = int(p_contract.get("threat", 1))
@@ -68,7 +68,7 @@ func start_run(p_origin: String, p_contract: Dictionary, primary: Dictionary, ar
 	boss_spawned = false
 	boss_dead = false
 	extracted = false
-	loadout = {"primary": primary, "armor": armor_pieces, "programs": programs}
+	loadout = {"primary": primary, "secondary": secondary, "armor": armor_pieces, "programs": programs}
 	statuses = SynergyEngine.empty_statuses()
 	active = true
 	_apply_armor_stats()

@@ -9,9 +9,12 @@
 //! cp target/release/libwirecrawl_rust.so ../rust_ext/bin/libwirecrawl_rust.linux.so
 //! ```
 //!
-//! Determinism contract: `generate_dungeon(seed, threat, rooms)` must produce
-//! the identical tile stream as `DungeonGen.generate()` in GDScript for the
-//! same inputs (same L-corridor order, same room rejection rule).
+//! Determinism contract: `generate_dungeon(seed, threat, rooms)` guarantees the
+//! same STRUCTURAL invariants as `DungeonGen.generate()` in GDScript
+//! (room count, tile alphabet, full connectivity, farthest-room exit) for the
+//! same inputs. Exact tile streams differ (ChaCha8 vs Godot's PRNG), so the
+//! GDScript path remains the reference implementation and the saves do not
+//! depend on which backend generated a sector.
 
 use godot::prelude::*;
 use rand::{Rng, SeedableRng};
@@ -76,6 +79,7 @@ pub struct Dungeon {
     pub w: usize,
     pub h: usize,
     pub tiles: Vec<u8>,
+    pub rooms: Vec<(usize, usize, usize, usize)>,
     pub spawn: (usize, usize),
     pub exit: (usize, usize),
 }
@@ -165,7 +169,7 @@ pub fn generate_dungeon(seed: u64, threat: i32, room_target: usize) -> Dungeon {
     }
     tiles[spawn.1 * w + spawn.0] = TILE_SPAWN;
     tiles[exit.1 * w + exit.0] = TILE_EXIT;
-    Dungeon { seed, w, h, tiles, spawn, exit }
+    Dungeon { seed, w, h, tiles, rooms, spawn, exit }
 }
 
 /// Connectivity check: every floor tile reachable from spawn?
@@ -230,13 +234,22 @@ impl WCDungeonRust {
         for (i, t) in d.tiles.iter().enumerate() {
             tiles[i] = *t;
         }
+        let mut room_arr = Array::new();
+        for (x, y, w, h) in &d.rooms {
+            room_arr.push(Rect2i::new(
+                Vector2i::new(*x as i32, *y as i32),
+                Vector2i::new(*w as i32, *h as i32),
+            ));
+        }
         dict! {
             "seed": d.seed as i64,
             "w": d.w as i64, "h": d.h as i64,
             "tiles": tiles,
+            "rooms": room_arr,
             "spawn": Vector2i::new(d.spawn.0 as i32, d.spawn.1 as i32),
             "exit": Vector2i::new(d.exit.0 as i32, d.exit.1 as i32),
             "threat": threat,
+            "rust": true,
         }
     }
 

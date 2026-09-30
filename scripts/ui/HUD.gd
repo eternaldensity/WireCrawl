@@ -14,6 +14,11 @@ var boss_bar: ProgressBar
 var boss_label: Label
 var boss_box: Control
 var prog_labels: Array = []
+var weapon_label: Label
+var loot_panel: PanelContainer
+var loot_rich: RichTextLabel
+var pending_loot := {}
+var loot_timer := 0.0
 var vignette: ColorRect
 var _feed_lines: Array = []
 var _announce_t := 0.0
@@ -79,6 +84,10 @@ func _build() -> void:
 		l.add_theme_color_override("font_color", Color(0.4, 0.95, 1.0))
 		progs.add_child(l)
 		prog_labels.append(l)
+	weapon_label = Label.new()
+	weapon_label.add_theme_font_size_override("font_size", 13)
+	weapon_label.add_theme_color_override("font_color", Color(0.85, 0.88, 1.0))
+	vitals.add_child(weapon_label)
 	# top-right minimap + threat
 	minimap = _Minimap.new()
 	minimap.custom_minimum_size = Vector2(190, 190)
@@ -124,13 +133,14 @@ func _build() -> void:
 	add_child(announce_label)
 	# controls hint bottom-right
 	var hint := Label.new()
-	hint.text = "WASD move · Mouse aim · LMB fire · SPACE dash · Q/E programs"
+	hint.text = "WASD move · Mouse aim · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot"
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	hint.position = Vector2(-460, -30)
+	hint.position = Vector2(-560, -30)
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(0.6, 0.65, 0.8))
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint)
+	_build_loot_panel()
 	_refresh_bars()
 
 func _process(delta: float) -> void:
@@ -145,6 +155,17 @@ func _process(delta: float) -> void:
 		boss_bar.value = (dungeon.boss as WCEnemy).hp
 	elif boss_box != null:
 		boss_box.visible = false
+	if loot_timer > 0.0:
+		loot_timer -= delta
+		if loot_timer <= 0.0:
+			loot_panel.visible = false
+			pending_loot = {}
+	if dungeon != null and dungeon.player != null and is_instance_valid(dungeon.player):
+		var wp: Dictionary = dungeon.player.weapon
+		var ws: Dictionary = RunManager.loadout.get("secondary", {})
+		weapon_label.text = "▶ %s (%.0f)  |  %s (%.0f)  [TAB]" % [
+			String(wp.get("name", "?")), float(wp.get("dps", 0)),
+			String(ws.get("name", "—")), float(ws.get("dps", 0))]
 	# program cooldown labels
 	if dungeon != null and dungeon.player != null and is_instance_valid(dungeon.player):
 		var p: WCPlayer = dungeon.player
@@ -157,6 +178,71 @@ func _process(delta: float) -> void:
 				(prog_labels[i] as Label).text = "[%s] %s %.1fs" % [key, pd.get("name", "Dash"), cd]
 			else:
 				(prog_labels[i] as Label).text = "[%s] %s ✓" % [key, pd.get("name", "Dash")]
+
+func _build_loot_panel() -> void:
+	loot_panel = PanelContainer.new()
+	loot_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	loot_panel.position = Vector2(-260, -300)
+	loot_panel.custom_minimum_size = Vector2(520, 0)
+	var s := _panel_style(Color(0.976, 0.941, 0.008))
+	loot_panel.add_theme_stylebox_override("panel", s)
+	add_child(loot_panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	loot_panel.add_child(v)
+	loot_rich = RichTextLabel.new()
+	loot_rich.bbcode_enabled = true
+	loot_rich.fit_content = true
+	loot_rich.scroll_active = false
+	loot_rich.custom_minimum_size = Vector2(500, 90)
+	v.add_child(loot_rich)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	v.add_child(row)
+	var b1 := Button.new()
+	b1.text = "[1] PRIMARY"
+	row.add_child(b1)
+	b1.pressed.connect(func(): choose_loot("primary"))
+	var b2 := Button.new()
+	b2.text = "[2] SECONDARY"
+	row.add_child(b2)
+	b2.pressed.connect(func(): choose_loot("secondary"))
+	var bx := Button.new()
+	bx.text = "LEAVE"
+	row.add_child(bx)
+	bx.pressed.connect(func(): loot_panel.visible = false)
+	loot_panel.visible = false
+
+func show_loot(item: Dictionary) -> void:
+	pending_loot = item
+	loot_timer = 14.0
+	var col: Color = GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE)
+	var cur1: Dictionary = RunManager.loadout.get("primary", {})
+	var cur2: Dictionary = RunManager.loadout.get("secondary", {})
+	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color]\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
+		col.to_html(false), String(item.get("name", "?")),
+		String(item.get("rarity", "")).capitalize(), float(item.get("dps", 0)),
+		String(cur1.get("name", "—")), float(cur1.get("dps", 0)),
+		String(cur2.get("name", "—")), float(cur2.get("dps", 0))]
+	loot_panel.visible = true
+
+func choose_loot(slot: String) -> void:
+	if pending_loot.is_empty() or dungeon == null:
+		return
+	if dungeon.player != null and is_instance_valid(dungeon.player):
+		dungeon.player.equip_item(pending_loot, slot)
+	pending_loot = {}
+	loot_panel.visible = false
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not loot_panel.visible or pending_loot.is_empty():
+		return
+	if event.is_action_pressed("equip_1"):
+		choose_loot("primary")
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("equip_2"):
+		choose_loot("secondary")
+		get_viewport().set_input_as_handled()
 
 func announce(text: String, color := Color.WHITE) -> void:
 	announce_label.text = text

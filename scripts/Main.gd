@@ -30,6 +30,17 @@ func _ensure_input() -> void:
 	_add_key("dash", [KEY_SPACE, KEY_SHIFT])
 	_add_key("program_1", [KEY_Q])
 	_add_key("program_2", [KEY_E])
+	_add_key("equip_1", [KEY_1])
+	_add_key("equip_2", [KEY_2])
+	if not InputMap.has_action("swap_weapon"):
+		InputMap.add_action("swap_weapon")
+		var tab := InputEventKey.new()
+		tab.physical_keycode = KEY_TAB
+		InputMap.action_add_event("swap_weapon", tab)
+		for wheel in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			var mbw := InputEventMouseButton.new()
+			mbw.button_index = wheel
+			InputMap.action_add_event("swap_weapon", mbw)
 	if not InputMap.has_action("fire"):
 		InputMap.add_action("fire")
 		var mb := InputEventMouseButton.new()
@@ -134,6 +145,10 @@ func show_title() -> void:
 	right.add_child(_label("— CYBERWARE (persistent) —", NEON_CYAN, 16))
 	for track in ["muscle", "ice", "ghost"]:
 		right.add_child(_cyberware_row(track))
+	right.add_child(_label("— AUDIO —", NEON_CYAN, 14))
+	right.add_child(_volume_row("master_vol", "Master"))
+	right.add_child(_volume_row("music_vol", "Music"))
+	right.add_child(_volume_row("sfx_vol", "SFX"))
 	var launch := Button.new()
 	launch.text = "▶ JACK IN"
 	launch.custom_minimum_size = Vector2(0, 56)
@@ -142,7 +157,7 @@ func show_title() -> void:
 	launch.pressed.connect(func():
 		AudioDirector.play("ui")
 		start_dungeon())
-	var hint := _label("WASD move · mouse aim · LMB fire · SPACE dash · Q/E programs · ESC pause", Color(0.55, 0.6, 0.75), 12)
+	var hint := _label("WASD move · mouse aim · LMB fire · SPACE dash · TAB/wheel swap · Q/E programs · ESC pause", Color(0.55, 0.6, 0.75), 12)
 	right.add_child(hint)
 
 func _label(t: String, c: Color, fs: int) -> Label:
@@ -265,6 +280,24 @@ func _cyberware_row(track: String) -> Control:
 		v.add_child(_label("MAXED", NEON_YELLOW, 11))
 	return p
 
+func _volume_row(setting: String, title: String) -> Control:
+	var h := HBoxContainer.new()
+	var l := _label(title, Color(0.75, 0.78, 0.9), 12)
+	l.custom_minimum_size = Vector2(60, 0)
+	h.add_child(l)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.value = float(SaveSystem.profile.get("settings", {}).get(setting, 0.8))
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(slider)
+	slider.value_changed.connect(func(v: float):
+		SaveSystem.profile["settings"][setting] = v
+		SaveSystem.save_profile()
+		_apply_volumes())
+	return h
+
 func _rain_lines(parent: Control) -> void:
 	# subtle animated scanline overlay (cheap cyberpunk vibe)
 	var lines := ColorRect.new()
@@ -278,9 +311,14 @@ func start_dungeon() -> void:
 	_clear()
 	var c: Dictionary = GameDB.CONTRACTS[clampi(sel_contract, 0, GameDB.CONTRACTS.size() - 1)]
 	var starter := LootFactory.roll_weapon(int(c["threat"]), 0.0, GameDB.ORIGINS[sel_origin]["weapon"], "common")
+	# Dual loadout: origin weapon + opposite-range sidearm (TAB/wheel swaps).
+	var side_id := "katana"
+	if GameDB.WEAPONS[starter["weapon_id"]]["slot"] == "melee":
+		side_id = "smg"
+	var sidearm := LootFactory.roll_weapon(1, 0.0, side_id, "common")
 	var armor := [LootFactory.roll_armor(1, 0.0)]
 	var progs: Array = [sel_prog1, sel_prog2, "blink"]
-	RunManager.start_run(sel_origin, c, starter, armor, progs)
+	RunManager.start_run(sel_origin, c, starter, sidearm, armor, progs)
 	dungeon = WCDungeon.new()
 	dungeon.setup(c)  # must run before add_child: _ready builds from layout
 	add_child(dungeon)
@@ -294,7 +332,9 @@ func _wire_dungeon() -> void:
 	add_child(hud)
 	hud.dungeon = dungeon
 	hud.obj_label.text = "◈ Reach the EXIT uplink — clear rooms for loot"
-	dungeon.loot_offered.connect(func(item): hud._on_loot(item))
+	dungeon.loot_offered.connect(func(item):
+		hud._on_loot(item)
+		hud.show_loot(item))
 	dungeon.extraction_ready.connect(func(): hud.announce("EXTRACT — HEAD TO THE GREEN BEAM", Color(0.3, 1.0, 0.5)))
 	if not RunManager.run_ended.is_connected(_on_run_ended):
 		RunManager.run_ended.connect(_on_run_ended)

@@ -162,6 +162,8 @@ func _physics_process(delta: float) -> void:
 	# fire
 	if Input.is_action_just_pressed("dash"):
 		try_dash()
+	if InputMap.has_action("swap_weapon") and Input.is_action_just_pressed("swap_weapon"):
+		swap_weapon()
 	if Input.is_action_just_pressed("program_1"):
 		cast_program(0)
 	if Input.is_action_just_pressed("program_2"):
@@ -265,6 +267,34 @@ func _melee_arc(pellets: int) -> void:
 		dungeon.spawn_slash_fx(global_position + aim_dir * 1.6, aim_dir,
 			GameDB.DAMAGE_COLORS.get(dtype, Color.WHITE))
 	fired.emit()
+
+func swap_weapon() -> void:
+	var sec: Dictionary = RunManager.loadout.get("secondary", {})
+	if sec.is_empty():
+		return
+	RunManager.loadout["secondary"] = weapon
+	RunManager.loadout["primary"] = sec
+	weapon = sec
+	wbase = GameDB.WEAPONS.get(String(weapon.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+	fire_cd = maxf(fire_cd, 0.25)
+	AudioDirector.play("ui")
+	if dungeon != null and dungeon.has_method("float_text"):
+		dungeon.float_text(global_position + Vector3(0, 2.2, 0),
+			"▶ " + String(weapon.get("name", "?")),
+			GameDB.RARITY_COLORS.get(String(weapon.get("rarity", "common")), Color.WHITE))
+
+func equip_item(item: Dictionary, slot: String) -> void:
+	if slot != "primary" and slot != "secondary":
+		slot = "primary"
+	RunManager.loadout[slot] = item
+	if slot == "primary":
+		weapon = item
+		wbase = GameDB.WEAPONS.get(String(item.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+	AudioDirector.play("levelup")
+	if dungeon != null and dungeon.has_method("float_text"):
+		dungeon.float_text(global_position + Vector3(0, 2.4, 0),
+			"EQUIPPED [%s]: %s" % [slot.to_upper(), String(item.get("name", "?"))],
+			GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE))
 
 func try_dash() -> void:
 	if dash_cd > 0.0:

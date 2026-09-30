@@ -27,6 +27,7 @@ var dash_dir := Vector3.ZERO
 var target: Node3D = null
 var flying := false
 var dead := false
+var elite := false
 var _t := 0.0
 var _body: MeshInstance3D
 var _ring: MeshInstance3D
@@ -127,6 +128,22 @@ func _build_visual(sc: float) -> void:
 	scale = Vector3.ONE * 0.05
 	var pop := create_tween()
 	pop.tween_property(self, "scale", Vector3.ONE, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func make_elite() -> void:
+	## Champion modifier: +80% HP, +25% dmg, gold ring, bonus loot on death.
+	if elite or is_boss:
+		return
+	elite = true
+	max_hp *= 1.8
+	hp = max_hp
+	dmg *= 1.25
+	xp *= 2
+	creds *= 2
+	scale *= 1.18
+	if _ring != null:
+		var rm := _ring.material_override as StandardMaterial3D
+		rm.emission = Color(0.976, 0.941, 0.008)
+		rm.albedo_color = rm.emission
 
 func _physics_process(delta: float) -> void:
 	if dead:
@@ -293,6 +310,11 @@ func take_hit(amount: float, dmg_type: String, tags: Array, from_pos: Vector3) -
 			return
 	_damage_raw(amount * mult)
 	_flash()
+	# damage numbers for heavy hits and killing blows
+	if dungeon != null and dungeon.has_method("spawn_damage_number"):
+		if hp <= 0.0 or amount * mult >= max_hp * 0.06:
+			dungeon.spawn_damage_number(global_position + Vector3(0, 2.0, 0),
+				amount * mult, hp <= 0.0)
 	if hp <= 0.0:
 		_die()
 

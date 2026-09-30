@@ -20,9 +20,11 @@ below. Autoloads boot in the order listed in `project.godot`.
 - `set_volumes(master, music, sfx)`. `enabled=false` silences (used headless).
 
 ## 4. RunManager (autoload, run state)
-- `start_run(origin, contract, primary, armor, programs)`; signals:
+- `start_run(origin, contract, primary, secondary, armor, programs)`; signals:
   `hp_changed, energy_changed, xp_changed, credits_changed, kill_confirmed,
   loot_dropped, objective_changed, run_ended, leveled_up`.
+- `loadout` holds **primary + secondary** weapons (TAB/wheel swaps via
+  `WCPlayer.swap_weapon`), armor pieces, programs.
 - `take_damage` (armor mitigation), `heal`, `spend_energy`, `regen`,
   `gain_xp` (multi-level), `register_kill/register_loot`, `end_run(victory)`
   (settles XP/credits/unlocks into SaveSystem).
@@ -43,9 +45,10 @@ below. Autoloads boot in the order listed in `project.godot`.
 
 ## 8. Dungeon (per-run Node3D, `scripts/dungeon/Dungeon.gd`)
 - `setup(contract)` BEFORE entering tree → `_ready` builds environment, level,
-  player, encounters, camera.
-- Owns FX API used by entities: `float_text, spawn_blast_fx, spawn_slash_fx,
-  spawn_beam_fx`; program AoE: `deploy_turret, summon_hound, blackout_blast,
+  player, encounters, camera. Layout comes from the Rust core when the
+  extension is loaded (`WCDungeonRust`, see §11), else `DungeonGen`.
+- Owns FX API used by entities: `float_text, spawn_damage_number,
+  spawn_blast_fx, spawn_flash_fx, spawn_slash_fx, spawn_beam_fx`; program AoE: `deploy_turret, summon_hound, blackout_blast,
   system_shock`; flow: `on_enemy_died, offer_loot, summon_adds`.
 - Signals: `room_cleared, boss_spawned, extraction_ready, loot_offered`.
 
@@ -53,16 +56,25 @@ below. Autoloads boot in the order listed in `project.godot`.
 - `WCPlayer`: input → move/aim/fire/dash/programs; reads RunManager for vitals,
   LootFactory item for damage; writes via RunManager/SynergyEngine/Dungeon.
 - `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`), statuses,
-  synergy event resolution, drops via `dungeon.on_enemy_died`.
+  synergy event resolution, `make_elite()` champions, drops via
+  `dungeon.on_enemy_died`.
 - `WCProjectile`: faction-based hit resolution, pierce/splash/arc.
 - `WCPickup`: magnet + `player.collect(kind, amount, item)`.
 - `WCAlly`: turret/hound deployables scaling with program power.
 
 ## 10. UI (`scripts/ui/HUD.gd`, `scripts/Main.gd`)
-- HUD observes RunManager signals + polls dungeon (boss bar, cooldowns, minimap).
-- Main owns screen flow + runtime InputMap bootstrap + pause + debrief.
+- HUD observes RunManager signals + polls dungeon (boss bar, cooldowns, minimap,
+  dual-weapon readout). Loot choice panel (`[1]`/`[2]`/click, 14s timeout)
+  calls `WCPlayer.equip_item`.
+- Main owns screen flow + runtime InputMap bootstrap + pause + debrief +
+  title audio sliders (persisted to SaveSystem settings).
 
 ## 11. Rust core (`rust_ext/`, optional)
 - Mirrors §§1,5–7 hot paths (`generate_dungeon`, `roll_rarity`, `xp_for_level`,
   connectivity). Exposed as `WCDungeonRust` GDExtension when compiled;
-  game never requires the `.so` — GDScript fallbacks are authoritative.
+  `WCDungeon._generate_layout` uses it when `ClassDB` reports it, else the
+  GDScript fallback. Verified: `cargo test` 3/3, cdylib links (zig-cc),
+  loads on 4.7.2 (`Initialize godot-rust`), generates connected sectors
+  through the engine (SimTest `rust_*`).
+- Repo ships the `.gdextension.template` + sources only; build with
+  `cargo build --release` and copy the template to use it.

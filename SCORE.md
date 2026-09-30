@@ -2,7 +2,17 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.2 — game-feel + backdrop pass (this commit)
+## v0.3 — loadout depth + choice pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 8.5 | Dual-weapon swap (TAB/wheel), loot-choice panel, elite champions, cover pillars, damage numbers, kill hit-stop. |
+| Usability | 8.4 | Choice UI with side-by-side compare, audio sliders persisted, weapon readout. Missing: rebinding, gamepad. |
+| Layout | 8.4 | Pillars add cover geometry; connected guarantee unchanged. |
+| Content | 8.6 | Elites + second slot + 10 weapons × 16 affixes + 2 bosses. |
+| Visuals | 8.5 | Damage numbers, elite rings, muzzle flash, skyline. |
+| **Mean** | **8.48** | Close. v0.4: title data-rain + boss intro cards + secret vault rooms → push over 8.6. |
+
+## v0.2 — game-feel + backdrop pass
 | Axis | Score | Notes |
 |---|---|---|
 | Gameplay | 8.2 | Hit-stop on kills/boss, muzzle flash, enemy materialize-in, AoE boot-tested. |

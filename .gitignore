@@ -4,6 +4,8 @@ godot_bin/
 *.tmp
 *.log
 rust_ext/target/
+rust_ext/bin/
+rust_ext/wirecrawl.gdextension
 rust_ext/*.so
 rust_ext/*.dll
 exports/

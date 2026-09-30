@@ -16,7 +16,7 @@ with a deep-cyberpunk theme: neon sprawl sectors, chrome rigs, daemon programs, 
 4. Spend credits on permanent cyberware; push to threat 6 / CHROME DRAGON.
 
 **Controls:** WASD move · mouse aim · LMB fire · SPACE dash (i-frames) ·
-Q/E programs · ESC pause.
+TAB/wheel weapon swap · Q/E programs · 1/2 loot choice · ESC pause.
 
 ## Systems (all modular, see SYSTEMS.md)
 

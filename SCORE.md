@@ -2,6 +2,20 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.23 — armor sets + companion slot (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.3 | Armor drops everywhere, 4 real set bonus tracks, drone companion with reboot, enemies pressure backline. |
+| Usability | 9.1 | Loot panel handles all gear kinds, pause gear readout, kind-aware feed. |
+| Content | 9.0 | Sets + 3 chassis + 2 affixes; gear game is now a full pillar. |
+| **Mean** | **9.10** | Bar cleared. |
+
+## v0.22 — floater fade curve (hold readable, cubic ease-in)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 9.1 | Unchanged systems. |
+| **Mean** | **9.02** | Bar cleared. |
+
 ## v0.21 — decals + aura fix (this commit)
 | Axis | Score | Notes |
 |---|---|---|

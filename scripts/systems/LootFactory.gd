@@ -78,6 +78,22 @@ func roll_armor(threat: int, luck := 0.0) -> Dictionary:
 			{"core": "Core", "plating": "Plating", "legs": "Servos"}[slot], rarity.capitalize()],
 		"rarity": rarity, "stats": stats, "threat": threat, "affixes": []}
 
+func roll_companion(threat: int, luck := 0.0) -> Dictionary:
+	var rarity := GameDB.loot_rarity_roll(rng, luck, threat)
+	var chassis: String = ["gunner", "stinger", "guardian"][rng.randi() % 3]
+	var mult: float = GameDB.RARITY_POWER.get(rarity, 1.0)
+	var names := {"gunner": "Gun Drone", "stinger": "Stinger", "guardian": "Aegis Drone"}
+	var item := {
+		"key": "c_%d_%d" % [Time.get_ticks_msec(), rng.randi()],
+		"kind": "companion", "chassis": chassis,
+		"name": "%s %s" % [rarity.capitalize(), names[chassis]],
+		"rarity": rarity,
+		"dps": snappedf((10.0 + threat * 3.0) * mult, 0.1),
+		"hp": int((60.0 + threat * 20.0) * mult),
+		"threat": threat, "affixes": [],
+	}
+	return item
+
 func _item_name(base_name: String, rarity: String) -> String:
 	var prefixes := {"common": "", "rare": "Tuned ", "epic": "Overclocked ",
 		"legendary": "Legendary ", "mythic": "MYTHIC "}

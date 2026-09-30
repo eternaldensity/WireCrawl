@@ -333,6 +333,35 @@ func _test_dungeon_boot() -> void:
 		_check(bool((dng.terminals[0] as Dictionary)["taken"]), "hack_marks_taken")
 	else:
 		_check(true, "hack_skipped_no_terminals")
+	# armor sets: two solo pieces activate the 2pc damage bonus
+	var solo_core := {"kind": "armor", "slot": "core", "set": "solo", "rarity": "epic",
+		"name": "Test Core", "stats": {"max_hp": 20, "armor": 5, "max_energy": 0, "speed": 0.0}, "threat": 2, "affixes": []}
+	var solo_legs := {"kind": "armor", "slot": "legs", "set": "solo", "rarity": "rare",
+		"name": "Test Servos", "stats": {"max_hp": 0, "armor": 2, "max_energy": 0, "speed": 0.05}, "threat": 2, "affixes": []}
+	var hp_before: float = RunManager.max_hp
+	RunManager.equip_armor(solo_core)
+	RunManager.equip_armor(solo_legs)
+	_check(int(RunManager.set_counts.get("solo", 0)) == 2, "set_counts")
+	_check(RunManager.dmg_mult > 0.0 and RunManager.set_dmg > 0.1, "set_bonus_dmg",
+		"(set_dmg=%.2f)" % RunManager.set_dmg)
+	_check(RunManager.max_hp > hp_before, "armor_hp_applies",
+		"(%.0f -> %.0f)" % [hp_before, RunManager.max_hp])
+	_check(RunManager.gear_lines().size() >= 3, "gear_lines")
+	# companion: equip, deploy, death triggers reboot, reboot respawns
+	var comp := LootFactory.roll_companion(2, 1.0)
+	_check(not comp.is_empty() and String(comp.get("kind", "")) == "companion", "companion_rolls")
+	RunManager.loadout["companion"] = comp
+	dng.deploy_companion()
+	await get_tree().physics_frame
+	_check(dng.companion != null and is_instance_valid(dng.companion), "companion_deploys")
+	if dng.companion != null:
+		dng.companion.take_hit(999999.0, "kinetic", [], dng.companion.global_position)
+		await get_tree().physics_frame
+		_check(dng.reboot_t > 0.0, "companion_reboots")
+		dng.reboot_t = 0.01
+		for _i in 6:
+			await get_tree().physics_frame
+		_check(dng.companion != null and is_instance_valid(dng.companion), "companion_respawns")
 	dng.queue_free()
 	RunManager.end_run(false)
 
@@ -450,7 +479,7 @@ func _test_run_manager() -> void:
 	RunManager.register_kill({"name": "Test Punk", "xp": 10, "creds": 5})
 	_check(RunManager.kills == k0 + 1 and RunManager.xp_earned > 0, "kill_registers")
 	var lv0: int = RunManager.run_level
-	RunManager.gain_xp(100000)
+	RunManager.gain_xp(GameDB.xp_for_level(RunManager.run_level) + 1)
 	_check(RunManager.run_level > lv0, "level_up_works", "(lv %d)" % RunManager.run_level)
 	RunManager.end_run(false)
 	_check(not RunManager.active, "run_ends")

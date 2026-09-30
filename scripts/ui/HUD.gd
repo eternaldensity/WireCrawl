@@ -23,6 +23,8 @@ var prog_labels: Array = []
 var weapon_label: Label
 var loot_panel: PanelContainer
 var loot_rich: RichTextLabel
+var loot_b1: Button
+var loot_b2: Button
 var pending_loot := {}
 var loot_queue: Array = []
 var loot_timer := 0.0
@@ -331,14 +333,14 @@ func _build_loot_panel() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	v.add_child(row)
-	var b1 := Button.new()
-	b1.text = "[1] PRIMARY"
-	row.add_child(b1)
-	b1.pressed.connect(func(): choose_loot("primary"))
-	var b2 := Button.new()
-	b2.text = "[2] SECONDARY"
-	row.add_child(b2)
-	b2.pressed.connect(func(): choose_loot("secondary"))
+	loot_b1 = Button.new()
+	loot_b1.text = "[1] PRIMARY"
+	row.add_child(loot_b1)
+	loot_b1.pressed.connect(func(): choose_loot("primary"))
+	loot_b2 = Button.new()
+	loot_b2.text = "[2] SECONDARY"
+	row.add_child(loot_b2)
+	loot_b2.pressed.connect(func(): choose_loot("secondary"))
 	var bx := Button.new()
 	bx.text = "LEAVE"
 	row.add_child(bx)
@@ -360,26 +362,82 @@ func _advance_loot() -> void:
 	pending_loot = loot_queue.pop_front()
 	loot_timer = 14.0
 	var col: Color = GameDB.RARITY_COLORS.get(String(pending_loot.get("rarity", "common")), Color.WHITE)
+	var queued := ""
+	if not loot_queue.is_empty():
+		queued = "  [color=#8888aa]+%d more in queue[/color]" % loot_queue.size()
+	var kind := String(pending_loot.get("kind", "weapon"))
+	if kind == "armor":
+		_show_armor_offer(col, queued)
+	elif kind == "companion":
+		_show_companion_offer(col, queued)
+	else:
+		_show_weapon_offer(col, queued)
+	loot_panel.visible = true
+
+func _show_weapon_offer(col: Color, queued: String) -> void:
 	var cur1: Dictionary = RunManager.loadout.get("primary", {})
 	var cur2: Dictionary = RunManager.loadout.get("secondary", {})
 	var ndps := float(pending_loot.get("dps", 0))
 	var best := maxf(float(cur1.get("dps", 0)), float(cur2.get("dps", 0)))
 	var verdict := "[color=#3dff66]UPGRADE[/color]" if ndps > best * 1.05 else "[color=#ff5f5f]SIDE-GRADE[/color]"
-	var queued := ""
-	if not loot_queue.is_empty():
-		queued = "  [color=#8888aa]+%d more in queue[/color]" % loot_queue.size()
 	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s, %.0f dps)[/color] %s%s\n[color=#aaaabb]vs %s (%.0f) / %s (%.0f) — [1] primary · [2] secondary[/color]" % [
 		col.to_html(false), String(pending_loot.get("name", "?")),
 		String(pending_loot.get("rarity", "")).capitalize(), ndps, verdict, queued,
 		String(cur1.get("name", "—")), float(cur1.get("dps", 0)),
 		String(cur2.get("name", "—")), float(cur2.get("dps", 0))]
-	loot_panel.visible = true
+	loot_b1.text = "[1] PRIMARY"
+	loot_b2.text = "[2] SECONDARY"
+	loot_b2.visible = true
+
+func _show_armor_offer(col: Color, queued: String) -> void:
+	var slot := String(pending_loot.get("slot", "core"))
+	var cur: Dictionary = {}
+	for piece in RunManager.loadout.get("armor", []):
+		if String((piece as Dictionary).get("slot", "")) == slot:
+			cur = piece
+	var st: Dictionary = pending_loot.get("stats", {})
+	var set_id := String(pending_loot.get("set", ""))
+	var counts: Dictionary = RunManager.set_counts
+	var now: int = int(counts.get(set_id, 0))
+	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s %s)[/color]%s\n[color=#aaaabb]%s → %s set %d/3 · HP +%d · ARM +%d — [1] equip (old salvaged)[/color]" % [
+		col.to_html(false), String(pending_loot.get("name", "?")),
+		String(pending_loot.get("rarity", "")).capitalize(), slot.capitalize(), queued,
+		String(cur.get("name", "empty slot")), GameDB.ARMOR_SETS[set_id]["name"], mini(now + 1, 3),
+		int(st.get("max_hp", 0)), int(st.get("armor", 0))]
+	loot_b1.text = "[1] EQUIP"
+	loot_b2.visible = false
+
+func _show_companion_offer(col: Color, queued: String) -> void:
+	var cur: Dictionary = RunManager.loadout.get("companion", {})
+	loot_rich.text = "[color=#%s][b]%s[/b][/color] [color=#8888aa](%s drone)[/color]%s\n[color=#aaaabb]%.0f dps · %d HP vs %s — [1] equip (old salvaged)[/color]" % [
+		col.to_html(false), String(pending_loot.get("name", "?")),
+		String(pending_loot.get("rarity", "")).capitalize(), queued,
+		float(pending_loot.get("dps", 0)), int(pending_loot.get("hp", 0)),
+		String(cur.get("name", "empty slot"))]
+	loot_b1.text = "[1] EQUIP"
+	loot_b2.visible = false
 
 func choose_loot(slot: String) -> void:
 	if pending_loot.is_empty() or dungeon == null:
 		return
-	if dungeon.player != null and is_instance_valid(dungeon.player):
-		dungeon.player.equip_item(pending_loot, slot)
+	var kind := String(pending_loot.get("kind", "weapon"))
+	if kind == "armor":
+		RunManager.equip_armor(pending_loot)
+		AudioDirector.play("levelup")
+		if dungeon.player != null and is_instance_valid(dungeon.player):
+			dungeon.float_text(dungeon.player.global_position + Vector3(0, 2.4, 0),
+				"ARMORED: " + String(pending_loot.get("name", "?")),
+				GameDB.RARITY_COLORS.get(String(pending_loot.get("rarity", "common")), Color.WHITE))
+	elif kind == "companion":
+		var old: Dictionary = RunManager.loadout.get("companion", {})
+		RunManager.loadout["companion"] = pending_loot
+		if not old.is_empty():
+			SaveSystem.add_credits(int(30.0 * float(pending_loot.get("threat", 1))))
+		AudioDirector.play("levelup")
+		dungeon.refresh_companion()
+	else:
+		if dungeon.player != null and is_instance_valid(dungeon.player):
+			dungeon.player.equip_item(pending_loot, slot)
 	_advance_loot()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -428,9 +486,16 @@ func _on_kill(enemy_name: String, xp: int) -> void:
 
 func _on_loot(item: Dictionary) -> void:
 	var col: Color = GameDB.RARITY_COLORS.get(String(item.get("rarity", "common")), Color.WHITE)
-	_push_feed("[color=#%s]◈ %s[/color] [color=#8888aa](%s %.0f dps)[/color]" % [
-		col.to_html(false), String(item.get("name", "?")),
-		String(item.get("rarity", "")).capitalize(), float(item.get("dps", 0))])
+	var sub := ""
+	match String(item.get("kind", "weapon")):
+		"weapon":
+			sub = "(%s %.0f dps)" % [String(item.get("rarity", "")).capitalize(), float(item.get("dps", 0))]
+		"armor":
+			sub = "(%s %s)" % [String(item.get("rarity", "")).capitalize(), String(item.get("slot", "?")).capitalize()]
+		"companion":
+			sub = "(%s drone)" % String(item.get("rarity", "")).capitalize()
+	_push_feed("[color=#%s]◈ %s[/color] [color=#8888aa]%s[/color]" % [
+		col.to_html(false), String(item.get("name", "?")), sub])
 
 func _push_feed(bb: String) -> void:
 	_feed_lines.append({"bb": bb, "exp": Time.get_ticks_msec() / 1000.0 + 7.0})

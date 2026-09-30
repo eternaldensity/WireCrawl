@@ -56,6 +56,8 @@ after `cargo build --release`, placing the lib in `rust_ext/bin/`.
   Toxic(Corrode) · Void(Mark). Combos: **Superconduct** (volt+chill),
   **Plasma Burn** (fire+toxic), **Shatter** (kinetic vs chill, executes),
   **Meltdown** (void vs marked), **Feedback Loop**, **Black Ice** (freeze).
-- **Loot:** 10 weapon archetypes × 5 rarities × 16 affixes; armor in 4 sets
-  (2pc/3pc bonuses); power scales with threat; mythic odds rise at threat 5–6.
+- **Loot:** 10 weapon archetypes × 5 rarities × 18 affixes; armor in 4 sets
+  with real 2pc/3pc bonuses (drops from foes, chests, vaults, bosses);
+  3 companion drone chassis; power scales with threat; mythic odds rise
+  at threat 5–6.
 - **Meta:** origin levels, 3 cyberware tracks × 5 tiers, 6 contracts, credits.

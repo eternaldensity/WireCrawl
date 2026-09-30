@@ -563,7 +563,7 @@ func try_dash() -> void:
 		dir = aim_dir
 	dash_dir = dir.normalized()
 	dash_time = 0.22
-	iframes = 0.35
+	iframes = 0.35 + RunManager.dash_bonus
 	AudioDirector.play("dash")
 	dashed.emit()
 	if dungeon != null and dungeon.has_method("spawn_blast_fx"):
@@ -583,7 +583,7 @@ func cast_program(slot: int) -> void:
 	var cd: float = float(pdata.get("cd", 10.0)) * (1.0 - RunManager.cdr)
 	if float(prog_cds.get(key, 0.0)) > 0.0:
 		return
-	if not RunManager.spend_energy(float(pdata.get("cost", 20.0))):
+	if not RunManager.spend_energy(float(pdata.get("cost", 20.0)) * RunManager.prog_cost_mult):
 		if dungeon != null and dungeon.has_method("float_text"):
 			dungeon.float_text(global_position + Vector3(0, 2.0, 0), "NO ENERGY", Color.YELLOW)
 		return
@@ -597,7 +597,7 @@ func cast_program(slot: int) -> void:
 			if dungeon != null and dungeon.has_method("blackout_blast"):
 				dungeon.blackout_blast(global_position + aim_dir * 5.0, RunManager.program_power)
 		"overdrive":
-			overdrive = 8.0
+			overdrive = 8.0 + RunManager.overdrive_dur_bonus
 			AudioDirector.play("levelup")
 		"hound":
 			if dungeon != null and dungeon.has_method("summon_hound"):
@@ -613,6 +613,12 @@ func take_hit(amount: float, dmg_type: String, _tags: Array, _from: Vector3) -> 
 	AudioDirector.play("hurt")
 	var dealt: float = RunManager.take_damage(amount)
 	iframes = 0.4
+	if RunManager.failsafe_popped:
+		RunManager.failsafe_popped = false
+		iframes = 2.0
+		AudioDirector.play("levelup")
+		if dungeon != null and dungeon.has_method("float_text"):
+			dungeon.float_text(global_position + Vector3(0, 2.6, 0), "FAILSAFE!", Color(0.976, 0.941, 0.008))
 	if _mat != null:
 		_mat.emission_energy_multiplier = 4.0
 		var tw := create_tween()

@@ -28,7 +28,9 @@ below. Autoloads boot in the order listed in `project.godot`.
   `hp_changed, energy_changed, xp_changed, credits_changed, kill_confirmed,
   loot_dropped, objective_changed, run_ended, leveled_up`.
 - `loadout` holds **primary + secondary** weapons (TAB/wheel swaps via
-  `WCPlayer.swap_weapon`), armor pieces, programs.
+  `WCPlayer.swap_weapon`), armor pieces, companion item, programs.
+- `_recalc_stats()` rebuilds everything from base + cyberware + levels +
+  armor + set bonuses; called on start/level/gear change.
 - `take_damage` (armor mitigation), `heal`, `spend_energy`, `regen`,
   `gain_xp` (multi-level), `register_kill/register_loot`, `end_run(victory)`
   (settles XP/credits/unlocks into SaveSystem).
@@ -74,13 +76,15 @@ below. Autoloads boot in the order listed in `project.godot`.
   attacks, shooter strafing, dasher telegraphs, statuses, floating HP bars,
   synergy event resolution, `make_elite()` champions, procedural rig models
   (mohawks, blades, rotors, robes+orbiting shards, pauldrons, boss crowns),
-  walk-bob/sway locomotion, drops via `dungeon.on_enemy_died`.
+  walk-bob/sway locomotion, drops via `dungeon.on_enemy_died`. Retargets onto
+  nearby allies/drones (30% every 2.5s).
 - `WCProjectile`: faction-based hit resolution (player mask hits world+foes,
   enemy mask hits world+player), pierce/splash/arc, wall impact FX.
 - `WCPickup`: magnet + `player.collect(kind, amount, item)`; distinct models
   (coin, cross, diamond, cache + rarity beam).
 - `WCPropCrate`: destructible cover with hazard-stripe affordance, loot pop.
-- `WCAlly`: turret/hound deployables scaling with program power.
+- `WCAlly`: turret/hound/companion deployables (HP, death, reboot for
+  persistent drones) scaling with `ally_power()` (origin × set bonuses).
 
 ## 10. UI (`scripts/ui/HUD.gd`, `scripts/ui/WCTheme.gd`, `scripts/Main.gd`)
 - `WCTheme`: single neon theme — baked angular/chrome/circuit textures

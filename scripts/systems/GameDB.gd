@@ -3,7 +3,7 @@ extends Node
 ## Weapons, armor sets, programs, origins, enemies, contracts, synergies, tuning.
 ## Pure data + balance formulas. No scene-tree dependencies.
 
-const VERSION := "0.22"
+const VERSION := "0.23"
 
 const DAMAGE_TYPES := ["kinetic", "thermal", "volt", "cryo", "toxic", "void"]
 const DAMAGE_COLORS := {
@@ -133,17 +133,17 @@ const AFFIXES := [
 
 const ARMOR_SETS := {
 	"solo": {"name": "Berserker Chrome", "color": Color(1.0, 0.16, 0.43),
-		"bonus2": "+15% damage, +10% lifesteal on takedown",
-		"bonus3": "Overdrive also grants 3s invulnerability"},
+		"bonus2": "+12% damage, heal 4 HP on kill",
+		"bonus3": "+0.04 lifesteal, +4s Overdrive duration"},
 	"netrunner": {"name": "Daemon Weave", "color": Color(0.25, 0.9, 1.0),
-		"bonus2": "Programs apply Marked; Marked take +25%",
-		"bonus3": "On boss kill, spawn a friendly Glitch Hound"},
+		"bonus2": "+25% program power, -15% program energy cost",
+		"bonus3": "+10% program power, allies +40% damage"},
 	"techie": {"name": "Forge Plate", "color": Color(0.976, 0.941, 0.008),
-		"bonus2": "Allies +50% damage, turret +1 barrel",
-		"bonus3": "Turret revives you once per run (50% HP)"},
+		"bonus2": "Allies +50% damage",
+		"bonus3": "Failsafe: survive one lethal hit at 1 HP + 2s phase"},
 	"ghost": {"name": "Ghost Skin", "color": Color(0.55, 0.8, 1.0),
-		"bonus2": "Dash leaves a decoy; +20% dodge window",
-		"bonus3": "Below 25% HP: 4s cloak + full energy"},
+		"bonus2": "+8% speed, +0.15s dash phase",
+		"bonus3": "15% chance to cloak 1.5s on kill"},
 }
 
 const PROGRAMS := {

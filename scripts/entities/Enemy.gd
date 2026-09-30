@@ -32,6 +32,7 @@ var innate: Array = []
 var strafe_dir := 1.0
 var strafe_t := 0.0
 var windup := 0.0
+var retarget_t := 0.0
 var stuck_t := 0.0
 var detour := 0.0
 var detour_t := 0.0
@@ -293,6 +294,24 @@ func _physics_process(delta: float) -> void:
 		target = get_tree().get_first_node_in_group("player")
 		if target == null:
 			return
+	# occasionally pick up an ally/drone instead of the player
+	retarget_t -= delta
+	if retarget_t <= 0.0:
+		retarget_t = 2.5
+		if randf() < 0.3:
+			var best: Node3D = null
+			var best_d := 9.0
+			for a in get_tree().get_nodes_in_group("allies"):
+				if not (a is WCAlly) or (a as WCAlly).dead_flag:
+					continue
+				var d: float = global_position.distance_to((a as Node3D).global_position)
+				if d < best_d:
+					best_d = d
+					best = a
+			if best != null:
+				target = best
+			elif not target.is_in_group("player"):
+				target = get_tree().get_first_node_in_group("player")
 	# Status tick
 	SynergyEngine.tick(statuses, delta)
 	var dot: float = SynergyEngine.dot_damage(statuses, max_hp, delta, innate)

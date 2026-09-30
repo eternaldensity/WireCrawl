@@ -31,6 +31,8 @@ var terminals: Array = []
 var zone_names: Array = []
 var cur_zone := 0
 var _zone_t := 0.0
+var companion: WCAlly = null
+var reboot_t := 0.0
 var _glow_mats := {}
 var _terminal_mat: StandardMaterial3D
 var clear_timer := 0.0
@@ -733,6 +735,7 @@ func _spawn_player() -> void:
 	add_child(player)
 	player.global_position = _cell_to_world(layout["spawn"]) + Vector3(0, 0.5, 0)
 	player.dungeon = self
+	deploy_companion()
 
 func _spawn_encounters() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -763,6 +766,8 @@ func _spawn_encounters() -> void:
 		# loot chest in loot rooms (deeper zones pay better luck)
 		if _room_has_tile(room, DungeonGen.TILE_LOOT):
 			var item := LootFactory.roll_weapon(teff, RunManager.luck + 0.5 + 0.3 * z)
+			if rng.randf() < 0.5:
+				item = LootFactory.roll_armor(teff, RunManager.luck + 0.5 + 0.3 * z)
 			RunManager.register_loot(item)
 			WCPickup.spawn(self, _cell_to_world(center) + Vector3(1.5, 0, 0), "loot", 0, item)
 			if rng.randf() < 0.5:
@@ -839,6 +844,9 @@ func _build_vault(rng: RandomNumberGenerator) -> void:
 	RunManager.register_loot(vault_item)
 	WCPickup.spawn(self, vault_center + Vector3(0, 0, 0), "loot", 0, vault_item)
 	WCPickup.spawn(self, vault_center + Vector3(1.5, 0, 0), "health", 40)
+	var vault_armor := LootFactory.roll_armor(threat + 1, RunManager.luck + 1.5)
+	RunManager.register_loot(vault_armor)
+	WCPickup.spawn(self, vault_center + Vector3(-1.5, 0, 0), "loot", 0, vault_armor)
 	float_text(vault_center + Vector3(0, 4, 0), "◆ VAULT ◆", Color(0.976, 0.941, 0.008))
 
 func _spawn_boss(boss_key: String) -> void:
@@ -873,6 +881,10 @@ func _process(delta: float) -> void:
 		cam.global_position = cam.global_position.lerp(target, 1.0 - pow(0.001, delta))
 	# rain follows player
 	clear_timer += delta
+	if reboot_t > 0.0 and RunManager.active:
+		reboot_t -= delta
+		if reboot_t <= 0.0:
+			deploy_companion()
 	_zone_t -= delta
 	if _zone_t <= 0.0 and player != null:
 		_zone_t = 0.5
@@ -920,6 +932,8 @@ func on_enemy_died(e: WCEnemy) -> void:
 		if _streak >= 3:
 			AudioDirector.play("synergy", 1.2)
 	RunManager.register_kill({"name": e.data.get("name", "?"), "xp": e.xp, "creds": e.creds})
+	if randf() < RunManager.cloak_kill and player != null and is_instance_valid(player):
+		player.cloak = 1.5
 	cam_shake = minf(1.2, cam_shake + (0.8 if e.is_boss else 0.25))
 	spawn_blast_fx(e.global_position + Vector3(0, 1, 0), 1.6, e.data.get("color", Color.RED))
 	# drops
@@ -932,7 +946,15 @@ func on_enemy_died(e: WCEnemy) -> void:
 		WCPickup.spawn(self, e.global_position, "energy", 20)
 	var drop_chance := 0.10 + 0.03 * threat + (0.5 if e.is_boss else 0.0) + (0.35 if e.elite else 0.0)
 	if rng.randf() < drop_chance:
-		var item := LootFactory.roll_weapon(threat, RunManager.luck + (1.0 if e.is_boss else 0.0) + (0.5 if e.elite else 0.0))
+		var luck_bonus := RunManager.luck + (1.0 if e.is_boss else 0.0) + (0.5 if e.elite else 0.0)
+		var item := {}
+		var roll := rng.randf()
+		if roll < 0.04:
+			item = LootFactory.roll_companion(threat, luck_bonus)
+		elif roll < 0.32:
+			item = LootFactory.roll_armor(threat, luck_bonus)
+		else:
+			item = LootFactory.roll_weapon(threat, luck_bonus)
 		RunManager.register_loot(item)
 		WCPickup.spawn(self, e.global_position, "loot", 0, item)
 		float_text(e.global_position + Vector3(0, 3, 0),
@@ -944,11 +966,14 @@ func on_enemy_died(e: WCEnemy) -> void:
 		float_text(e.global_position + Vector3(0, 4, 0), "TARGET DOWN — EXTRACT!", Color(0.3, 1.0, 0.5))
 		extraction_ready.emit()
 		# boss shower
-		for _i in 3:
+		for _i in 2:
 			var bonus := LootFactory.roll_weapon(threat, RunManager.luck + 1.0)
 			RunManager.register_loot(bonus)
 			WCPickup.spawn(self, e.global_position + Vector3(rng.randf_range(-3, 3), 0, rng.randf_range(-3, 3)),
 				"loot", 0, bonus)
+		var boss_armor := LootFactory.roll_armor(threat, RunManager.luck + 1.0)
+		RunManager.register_loot(boss_armor)
+		WCPickup.spawn(self, e.global_position + Vector3(2, 0, 0), "loot", 0, boss_armor)
 
 func _on_exit_enter(body: Node3D) -> void:
 	if extracted:
@@ -965,12 +990,40 @@ func _on_exit_enter(body: Node3D) -> void:
 
 # ---------------- programs / AoE ----------------
 func deploy_turret(pos: Vector3, power: float) -> void:
-	WCAlly.spawn(self, pos + Vector3(0, 0.5, 0), "turret", power)
+	WCAlly.spawn(self, pos + Vector3(0, 0.5, 0), "turret", RunManager.ally_power())
 	float_text(pos + Vector3(0, 2, 0), "TURRET ONLINE", Color(0.3, 0.9, 1.0))
 
 func summon_hound(pos: Vector3) -> void:
-	WCAlly.spawn(self, pos, "hound", RunManager.program_power)
+	WCAlly.spawn(self, pos, "hound", RunManager.ally_power())
 	float_text(pos + Vector3(0, 2, 0), "HOUND unleashed", Color(1.0, 0.16, 0.43))
+
+func deploy_companion() -> void:
+	var item: Dictionary = RunManager.loadout.get("companion", {})
+	if item.is_empty() or player == null or not is_instance_valid(player):
+		return
+	if companion != null and is_instance_valid(companion):
+		companion.on_death = Callable()
+		companion.queue_free()
+	companion = WCAlly.spawn(self, player.global_position + Vector3(1.5, 0.5, 0),
+		"companion", RunManager.ally_power(),
+		{"persistent": true, "hp": float(item.get("hp", 80)),
+			"dps": float(item.get("dps", 12)),
+			"ranged": String(item.get("chassis", "gunner")) == "gunner",
+			"on_death": on_companion_down})
+	float_text(player.global_position + Vector3(0, 2.4, 0),
+		"⬢ " + String(item.get("name", "Drone")), Color(0.976, 0.941, 0.008))
+
+func refresh_companion() -> void:
+	reboot_t = 0.0
+	deploy_companion()
+
+func on_companion_down() -> void:
+	companion = null
+	reboot_t = 20.0
+	AudioDirector.play("hurt", 0.7)
+	if player != null and is_instance_valid(player):
+		float_text(player.global_position + Vector3(0, 2.6, 0), "DRONE DOWN — REBOOTING",
+			Color(1.0, 0.5, 0.2))
 
 func blackout_blast(pos: Vector3, power: float) -> void:
 	AudioDirector.play("explode")

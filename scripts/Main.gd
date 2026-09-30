@@ -556,6 +556,14 @@ func toggle_pause() -> void:
 		v.add_theme_constant_override("separation", 8)
 		box.add_child(v)
 		v.add_child(_label("‖ PAUSED", NEON_CYAN, 28))
+		var gear := _panel(Color(0.6, 0.65, 0.9))
+		v.add_child(gear)
+		var gv := VBoxContainer.new()
+		gv.add_theme_constant_override("separation", 2)
+		gear.add_child(gv)
+		gv.add_child(_label("— GEAR —", Color(0.6, 0.65, 0.9), 13))
+		for line in RunManager.gear_lines():
+			gv.add_child(_label(line, Color(0.75, 0.78, 0.9), 12))
 		var resume := Button.new()
 		resume.text = "RESUME"
 		v.add_child(resume)

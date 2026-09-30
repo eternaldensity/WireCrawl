@@ -1,0 +1,349 @@
+class_name WCPlayer
+extends CharacterBody3D
+## Isometric player rig: WASD move, mouse-aim, LMB fire (melee arc or guns),
+## Space dash (i-frames), Q/E programs, F interact handled by Dungeon via
+## collect(). Data-driven weapon + affix modifiers; statuses via SynergyEngine.
+
+signal fired
+signal dashed
+signal program_cast(id: String)
+
+var move_speed := 7.2
+var aim_dir := Vector3.FORWARD
+var fire_cd := 0.0
+var dash_cd := 0.0
+var dash_time := 0.0
+var dash_dir := Vector3.ZERO
+var dash_charges := 1
+var iframes := 0.0
+var prog_cds := {"slot1": 0.0, "slot2": 0.0}
+var overdrive := 0.0
+var cloak := 0.0
+var alive := true
+var statuses := {}
+var weapon := {}
+var wbase := {}
+var programs: Array = ["blink"]
+var dungeon = null
+var _t := 0.0
+var _body: MeshInstance3D
+var _mat: StandardMaterial3D
+var _gun: MeshInstance3D
+var camera: Camera3D
+
+func _ready() -> void:
+	add_to_group("player")
+	collision_layer = 2
+	collision_mask = 1
+	statuses = SynergyEngine.empty_statuses()
+	var shape := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.42
+	cap.height = 1.5
+	shape.shape = cap
+	shape.position.y = 0.75
+	add_child(shape)
+	_build_visual()
+	_apply_run_stats()
+
+func _build_visual() -> void:
+	var tint: Color = GameDB.ORIGINS.get(RunManager.origin, {}).get("color", Color.CYAN)
+	_mat = StandardMaterial3D.new()
+	_mat.albedo_color = Color(0.08, 0.08, 0.12)
+	_mat.emission_enabled = true
+	_mat.emission = tint
+	_mat.emission_energy_multiplier = 1.2
+	_body = MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.8, 1.4, 0.55)
+	_body.mesh = bm
+	_body.position.y = 0.8
+	_body.material_override = _mat
+	add_child(_body)
+	# visor
+	var visor := MeshInstance3D.new()
+	var vm := BoxMesh.new()
+	vm.size = Vector3(0.55, 0.12, 0.05)
+	visor.mesh = vm
+	var vmat := StandardMaterial3D.new()
+	vmat.albedo_color = tint
+	vmat.emission_enabled = true
+	vmat.emission = tint
+	vmat.emission_energy_multiplier = 5.0
+	vmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visor.material_override = vmat
+	visor.position = Vector3(0, 1.2, 0.3)
+	add_child(visor)
+	# gun block
+	_gun = MeshInstance3D.new()
+	var gm := BoxMesh.new()
+	gm.size = Vector3(0.16, 0.16, 0.9)
+	_gun.mesh = gm
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.1, 0.1, 0.12)
+	gmat.emission_enabled = true
+	gmat.emission = Color(1.0, 0.16, 0.43)
+	gmat.emission_energy_multiplier = 2.0
+	_gun.material_override = gmat
+	_gun.position = Vector3(0.45, 0.9, 0.3)
+	add_child(_gun)
+
+func _apply_run_stats() -> void:
+	move_speed = float(GameDB.ORIGINS.get(RunManager.origin, {}).get("speed", 7.0)) * RunManager.speed_mult
+	weapon = RunManager.loadout.get("primary", {})
+	if weapon.is_empty():
+		weapon = LootFactory.roll_weapon(1, 0.0, GameDB.ORIGINS[RunManager.origin]["weapon"], "common")
+		RunManager.loadout["primary"] = weapon
+	wbase = GameDB.WEAPONS.get(String(weapon.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+	programs = RunManager.loadout.get("programs", ["blink"])
+	if programs.size() < 3:
+		programs = (programs + ["blink", "blink", "blink"]).slice(0, 3)
+
+func stat_rate_mult() -> float:
+	var m := 1.0
+	for a in weapon.get("affixes", []):
+		if String(a["id"]) == "fast_hands":
+			m *= 1.22
+	if overdrive > 0.0:
+		m *= 1.35
+	return m
+
+func stat_damage() -> float:
+	var power: float = float(weapon.get("power", 1.0))
+	var d: float = float(wbase.get("dmg", 10.0)) * power * RunManager.dmg_mult
+	for a in weapon.get("affixes", []):
+		match String(a["id"]):
+			"overclocked": d *= 1.45
+			"multishot": d *= 0.88
+	if overdrive > 0.0:
+		d *= 1.6
+	return d
+
+func _physics_process(delta: float) -> void:
+	if not alive or not RunManager.active:
+		return
+	_t += delta
+	RunManager.regen(delta)
+	SynergyEngine.tick(statuses, delta)
+	var dot: float = SynergyEngine.dot_damage(statuses, RunManager.max_hp, delta)
+	if dot > 0.0:
+		RunManager.take_damage(dot * 0.5)
+	fire_cd -= delta
+	dash_cd -= delta
+	iframes -= delta
+	if dash_time > 0.0:
+		dash_time -= delta
+	for k in prog_cds.keys():
+		prog_cds[k] = maxf(0.0, float(prog_cds[k]) - delta * (1.0 + RunManager.cdr))
+	if overdrive > 0.0:
+		overdrive -= delta
+		RunManager.take_damage(RunManager.max_hp * 0.015 * delta * 10.0 * 0.1)
+	if cloak > 0.0:
+		cloak -= delta
+	# Move
+	var input := Vector2(
+		Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
+		Input.get_action_strength("move_back") - Input.get_action_strength("move_fwd"))
+	var wish := Vector3(input.x, 0, input.y)
+	if wish.length() > 1.0:
+		wish = wish.normalized()
+	# Camera-relative (camera is isometric, yaw fixed) — world aligned already.
+	var spd: float = move_speed
+	if dash_time > 0.0:
+		velocity = dash_dir * move_speed * 3.4
+	else:
+		velocity = wish * spd
+	velocity.y = -9.8
+	move_and_slide()
+	_update_aim()
+	# face aim
+	if aim_dir.length() > 0.05:
+		rotation.y = lerp_angle(rotation.y, atan2(-aim_dir.x, -aim_dir.z), 14.0 * delta)
+	# fire
+	if Input.is_action_just_pressed("dash"):
+		try_dash()
+	if Input.is_action_just_pressed("program_1"):
+		cast_program(0)
+	if Input.is_action_just_pressed("program_2"):
+		cast_program(1)
+	if Input.is_action_pressed("fire") and fire_cd <= 0.0:
+		try_fire()
+	# cloak visual
+	_body.transparency = 0.65 if cloak > 0.0 else 0.0
+
+func _has_affix(id: String) -> bool:
+	for a in weapon.get("affixes", []):
+		if String(a["id"]) == id:
+			return true
+	return false
+
+func _update_aim() -> void:
+	var vp := get_viewport()
+	if vp == null or camera == null:
+		return
+	var mp := vp.get_mouse_position()
+	var ro := camera.project_ray_origin(mp)
+	var rd := camera.project_ray_normal(mp)
+	# intersect y=1 plane
+	if absf(rd.y) > 0.001:
+		var t: float = (1.0 - ro.y) / rd.y
+		if t > 0.0:
+			var hit: Vector3 = ro + rd * t
+			var d: Vector3 = hit - global_position
+			d.y = 0.0
+			if d.length() > 0.3:
+				aim_dir = d.normalized()
+
+func try_fire() -> void:
+	var rate: float = float(wbase.get("rate", 4.0)) * stat_rate_mult()
+	fire_cd = 1.0 / rate
+	var pellets: int = int(wbase.get("pellets", 1))
+	for a in weapon.get("affixes", []):
+		if String(a["id"]) == "multishot":
+			pellets += 1
+	if bool(wbase.get("projectile", true)):
+		AudioDirector.play("shoot_heavy" if wbase.get("slot") == "heavy" else "shoot")
+		var spread: float = float(wbase.get("spread", 0.05))
+		for i in pellets:
+			var dir := aim_dir.rotated(Vector3.UP, randf_range(-spread, spread) * pellets)
+			var opts := {"faction": "player", "damage": stat_damage() / maxf(1.0, float(pellets) * 0.7),
+				"dmg_type": String(wbase.get("dmg_type", "kinetic")),
+				"speed": float(wbase.get("speed", 36.0)),
+				"color": GameDB.DAMAGE_COLORS.get(String(wbase.get("dmg_type", "kinetic")), Color.WHITE),
+				"pierce": int(wbase.get("pierce", 0)) + (2 if _has_affix("pierce") else 0),
+				"splash": float(wbase.get("splash", 0.0)) + (2.0 if _has_affix("splash") else 0.0),
+				"arc": 6.0 if bool(wbase.get("arc", false)) else 0.0,
+				"tags": _weapon_tags()}
+			WCProjectile.spawn(get_parent(), global_position + Vector3(0, 1.1, 0) + aim_dir * 0.8, dir, opts)
+		# chain affix handled on impact via extra tag
+	else:
+		AudioDirector.play("melee")
+		_melee_arc(pellets)
+
+func _weapon_tags() -> Array:
+	var tags: Array = []
+	for a in weapon.get("affixes", []):
+		match String(a["id"]):
+			"chain": tags.append("chain_affix")
+			"execute": tags.append("execute_affix")
+			"volt_core": tags.append("volt_core")
+			"pyro_core": tags.append("pyro_core")
+			"cryo_core": tags.append("cryo_core")
+			"toxin_core": tags.append("toxin_core")
+	return tags
+
+func _melee_arc(pellets: int) -> void:
+	var wrange: float = float(wbase.get("range", 3.2))
+	var dmg: float = stat_damage()
+	var dtype := String(wbase.get("dmg_type", "kinetic"))
+	var chain: int = int(wbase.get("chain", 0))
+	var wave := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is WCEnemy):
+			continue
+		var to: Vector3 = (e as Node3D).global_position - global_position
+		to.y = 0.0
+		if to.length() > wrange + 0.6:
+			continue
+		if to.normalized().angle_to(aim_dir) > 1.1:
+			continue
+		(e as WCEnemy).take_hit(dmg, dtype, _weapon_tags() + ["melee"], global_position)
+		wave += 1
+		if _has_affix("chain"):
+			(e as WCEnemy)._chain_lightning(1, dmg * 0.5)
+		if _has_affix("splash") and dungeon != null and dungeon.has_method("spawn_blast_fx"):
+			dungeon.spawn_blast_fx((e as Node3D).global_position, 2.0,
+				GameDB.DAMAGE_COLORS.get(dtype, Color.WHITE))
+		if _has_affix("vampire"):
+			RunManager.heal(dmg * 0.03)
+		if chain > 0:
+			(e as WCEnemy)._chain_lightning(chain, dmg * 0.5)
+	if dungeon != null and dungeon.has_method("spawn_slash_fx"):
+		dungeon.spawn_slash_fx(global_position + aim_dir * 1.6, aim_dir,
+			GameDB.DAMAGE_COLORS.get(dtype, Color.WHITE))
+	fired.emit()
+
+func try_dash() -> void:
+	if dash_cd > 0.0:
+		return
+	dash_cd = 1.1
+	var dir := Vector3(Input.get_action_strength("move_right") - Input.get_action_strength("move_left"),
+		0, Input.get_action_strength("move_back") - Input.get_action_strength("move_fwd"))
+	if dir.length() < 0.1:
+		dir = aim_dir
+	dash_dir = dir.normalized()
+	dash_time = 0.22
+	iframes = 0.35
+	AudioDirector.play("dash")
+	dashed.emit()
+	if dungeon != null and dungeon.has_method("spawn_blast_fx"):
+		dungeon.spawn_blast_fx(global_position, 1.2, Color(0.3, 0.9, 1.0))
+
+func cast_program(slot: int) -> void:
+	if slot < 0 or slot >= programs.size():
+		return
+	var pid := String(programs[slot])
+	if pid == "blink" or pid == "":
+		try_dash()
+		return
+	var pdata: Dictionary = GameDB.PROGRAMS.get(pid, {})
+	if pdata.is_empty():
+		return
+	var key := "slot%d" % (slot + 1)
+	var cd: float = float(pdata.get("cd", 10.0)) * (1.0 - RunManager.cdr)
+	if float(prog_cds.get(key, 0.0)) > 0.0:
+		return
+	if not RunManager.spend_energy(float(pdata.get("cost", 20.0))):
+		if dungeon != null and dungeon.has_method("float_text"):
+			dungeon.float_text(global_position + Vector3(0, 2.0, 0), "NO ENERGY", Color.YELLOW)
+		return
+	prog_cds[key] = cd
+	AudioDirector.play("turret")
+	match pid:
+		"ice_turret":
+			if dungeon != null and dungeon.has_method("deploy_turret"):
+				dungeon.deploy_turret(global_position + aim_dir * 2.0, RunManager.program_power)
+		"blackout":
+			if dungeon != null and dungeon.has_method("blackout_blast"):
+				dungeon.blackout_blast(global_position + aim_dir * 5.0, RunManager.program_power)
+		"overdrive":
+			overdrive = 8.0
+			AudioDirector.play("levelup")
+		"hound":
+			if dungeon != null and dungeon.has_method("summon_hound"):
+				dungeon.summon_hound(global_position + Vector3(1.5, 0, 0))
+		"system_shock":
+			if dungeon != null and dungeon.has_method("system_shock"):
+				dungeon.system_shock(global_position, RunManager.program_power)
+	program_cast.emit(pid)
+
+func take_hit(amount: float, dmg_type: String, _tags: Array, _from: Vector3) -> void:
+	if not alive or iframes > 0.0 or cloak > 0.0:
+		return
+	AudioDirector.play("hurt")
+	var dealt: float = RunManager.take_damage(amount)
+	iframes = 0.4
+	if _mat != null:
+		_mat.emission_energy_multiplier = 4.0
+		var tw := create_tween()
+		tw.tween_property(_mat, "emission_energy_multiplier", 1.2, 0.15)
+	if RunManager.hp <= 0.0:
+		alive = false
+
+func collect(kind: String, amount: int, item: Dictionary) -> void:
+	match kind:
+		"credits":
+			RunManager.credits_earned += amount
+			AudioDirector.play("credits")
+		"health":
+			RunManager.heal(float(amount))
+			AudioDirector.play("pickup")
+		"energy":
+			RunManager.energy = minf(RunManager.max_energy, RunManager.energy + float(amount))
+			AudioDirector.play("pickup", 1.2)
+		"loot":
+			AudioDirector.play("levelup", 1.3)
+			if dungeon != null and dungeon.has_method("offer_loot"):
+				dungeon.offer_loot(item)
+			else:
+				RunManager.register_loot(item)

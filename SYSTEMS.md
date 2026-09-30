@@ -1,0 +1,68 @@
+# SYSTEMS — module contracts for WIRECRAWL
+
+Each system owns one concern and talks to others only through the interfaces
+below. Autoloads boot in the order listed in `project.godot`.
+
+## 1. GameDB (autoload, data-only)
+- Owns: ORIGINS, WEAPONS, AFFIXES, ARMOR_SETS, PROGRAMS, ENEMIES, SYNERGIES,
+  CONTRACTS, CYBERWARE_TRACKS, RARITY tables.
+- Pure static funcs: `xp_for_level`, `threat_hp_mult`, `threat_dmg_mult`,
+  `loot_rarity_roll(rng, luck, threat)`, `weapon_dps`.
+- Nobody writes to GameDB. Balance changes happen here (mirrored in Rust).
+
+## 2. SaveSystem (autoload)
+- `load_profile / save_profile` (atomic JSON), `add_xp(origin, n) -> [gained, lv]`,
+  `add_credits/spend_credits`, `buy_cyberware(track)`, `cyberware_bonus()`.
+- Emits nothing; callers re-read profile.
+
+## 3. AudioDirector (autoload)
+- `play(name, pitch)` — cached synthesized SFX. Generative music starts in `_ready`.
+- `set_volumes(master, music, sfx)`. `enabled=false` silences (used headless).
+
+## 4. RunManager (autoload, run state)
+- `start_run(origin, contract, primary, armor, programs)`; signals:
+  `hp_changed, energy_changed, xp_changed, credits_changed, kill_confirmed,
+  loot_dropped, objective_changed, run_ended, leveled_up`.
+- `take_damage` (armor mitigation), `heal`, `spend_energy`, `regen`,
+  `gain_xp` (multi-level), `register_kill/register_loot`, `end_run(victory)`
+  (settles XP/credits/unlocks into SaveSystem).
+
+## 5. LootFactory (autoload)
+- `roll_weapon(threat, luck, force_id, force_rarity)`, `roll_armor(threat, luck)`,
+  `set_bonus_count(sets)`, `describe(item)`. Own RNG instance.
+
+## 6. SynergyEngine (autoload)
+- `empty_statuses, tick, has, dot_damage, apply_hit(statuses, dmg_type, tags, power)`.
+- Combos are data (`GameDB.SYNERGIES`); `apply_hit` returns event dicts the
+  caller resolves (burst damage, chains, freezes) — engine never touches nodes.
+
+## 7. DungeonGen (autoload)
+- `generate(threat, rooms, seed) -> {tiles, rooms, spawn, exit, ...}`,
+  `is_walkable`, `world_pos`, `random_floor_cell`.
+- Guarantee: all non-void tiles connected (corridors carved in placement order).
+
+## 8. Dungeon (per-run Node3D, `scripts/dungeon/Dungeon.gd`)
+- `setup(contract)` BEFORE entering tree → `_ready` builds environment, level,
+  player, encounters, camera.
+- Owns FX API used by entities: `float_text, spawn_blast_fx, spawn_slash_fx,
+  spawn_beam_fx`; program AoE: `deploy_turret, summon_hound, blackout_blast,
+  system_shock`; flow: `on_enemy_died, offer_loot, summon_adds`.
+- Signals: `room_cleared, boss_spawned, extraction_ready, loot_offered`.
+
+## 9. Entities (`scripts/entities/`)
+- `WCPlayer`: input → move/aim/fire/dash/programs; reads RunManager for vitals,
+  LootFactory item for damage; writes via RunManager/SynergyEngine/Dungeon.
+- `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`), statuses,
+  synergy event resolution, drops via `dungeon.on_enemy_died`.
+- `WCProjectile`: faction-based hit resolution, pierce/splash/arc.
+- `WCPickup`: magnet + `player.collect(kind, amount, item)`.
+- `WCAlly`: turret/hound deployables scaling with program power.
+
+## 10. UI (`scripts/ui/HUD.gd`, `scripts/Main.gd`)
+- HUD observes RunManager signals + polls dungeon (boss bar, cooldowns, minimap).
+- Main owns screen flow + runtime InputMap bootstrap + pause + debrief.
+
+## 11. Rust core (`rust_ext/`, optional)
+- Mirrors §§1,5–7 hot paths (`generate_dungeon`, `roll_rarity`, `xp_for_level`,
+  connectivity). Exposed as `WCDungeonRust` GDExtension when compiled;
+  game never requires the `.so` — GDScript fallbacks are authoritative.

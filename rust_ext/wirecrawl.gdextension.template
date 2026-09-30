@@ -1,0 +1,13 @@
+[general]
+
+remap_variants=false
+; TEMPLATE — copy to wirecrawl.gdextension when you build the .so/.dll (see README). The game runs fully without it:
+; scripts/systems/*.gd are the authoritative fallback implementations.
+; Build: cd rust_ext && cargo build --release
+
+[libraries]
+
+linux.debug.x86_64="res://rust_ext/bin/libwirecrawl_rust.linux.debug.so"
+linux.release.x86_64="res://rust_ext/bin/libwirecrawl_rust.linux.so"
+windows.debug.x86_64="res://rust_ext/bin/wirecrawl_rust.windows.debug.dll"
+windows.release.x86_64="res://rust_ext/bin/wirecrawl_rust.windows.dll"

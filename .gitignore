@@ -1,0 +1,13 @@
+# ---> This file is ignored by Git <---
+.godot/
+godot_bin/
+*.tmp
+*.log
+rust_ext/target/
+rust_ext/*.so
+rust_ext/*.dll
+exports/
+*.pck
+*.zip
+.DS_Store
+Thumbs.db

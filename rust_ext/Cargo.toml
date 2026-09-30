@@ -1,0 +1,18 @@
+[package]
+name = "wirecrawl_rust"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance gameplay core for WIRECRAWL: seeded dungeon generation, loot-table rolling, synergy resolution. Optional GDExtension — GDScript fallbacks in scripts/systems/ are authoritative when the .so is absent."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+godot = { version = "0.2", features = ["api-4-3"] }
+rand = "0.8"
+rand_chacha = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+
+[profile.release]
+lto = true
+opt-level = 3

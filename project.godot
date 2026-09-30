@@ -1,0 +1,52 @@
+; Engine configuration file.
+; WIRECRAWL: NEON ABYSS — cyberpunk dungeon-crawler (Minecraft Dungeons-like)
+; Godot 4.7+
+
+config_version=5
+
+[application]
+
+config/name="WIRECRAWL: NEON ABYSS"
+config/description="A cyberpunk isometric action dungeon-crawler. Squad-of-one vs the Sprawl: procedural sectors, deep loot synergies, 3 rig origins, 6 damage types."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility", "Mobile")
+boot_splash/bg_color=Color(0.02, 0.02, 0.05, 1)
+icon="res://icon.svg"
+
+[autoload]
+
+GameDB="*res://scripts/systems/GameDB.gd"
+SaveSystem="*res://scripts/systems/SaveSystem.gd"
+AudioDirector="*res://scripts/systems/AudioDirector.gd"
+RunManager="*res://scripts/systems/RunManager.gd"
+LootFactory="*res://scripts/systems/LootFactory.gd"
+SynergyEngine="*res://scripts/systems/SynergyEngine.gd"
+DungeonGen="*res://scripts/systems/DungeonGen.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/resizable=true
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[layer_names]
+
+3d_physics/layer_1="World"
+3d_physics/layer_2="Player"
+3d_physics/layer_3="Enemy"
+3d_physics/layer_4="Projectile"
+3d_physics/layer_5="Pickup"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.008, 0.008, 0.02, 1)
+anti_aliasing/quality/msaa_3d=2
+textures/vram_compression/import_etc2_astc=true

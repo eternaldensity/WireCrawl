@@ -2,6 +2,12 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.20 — two-point wall lighting (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Visuals | 9.4 | Cool camera-side fill + stronger ambient: no face falls flat black. |
+| **Mean** | **9.11** | Bar cleared. |
+
 ## v0.19 — walls read true (this commit)
 | Axis | Score | Notes |
 |---|---|---|

@@ -89,8 +89,8 @@ func _build_environment() -> void:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.008, 0.008, 0.02)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.12, 0.1, 0.22)
-	e.ambient_light_energy = 1.2
+	e.ambient_light_color = Color(0.14, 0.12, 0.26)
+	e.ambient_light_energy = 1.6
 	e.glow_enabled = true
 	e.glow_intensity = 1.4
 	e.glow_strength = 1.25
@@ -111,6 +111,14 @@ func _build_environment() -> void:
 	sun.light_energy = 0.95
 	sun.shadow_enabled = false
 	add_child(sun)
+	# Cool fill from the camera side so faces turned from the key stay
+	# modeled instead of falling to flat black at some angles.
+	var fill := DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-52, 32, 0)
+	fill.light_color = Color(0.45, 0.65, 1.0)
+	fill.light_energy = 0.45
+	fill.shadow_enabled = false
+	add_child(fill)
 	var magenta := OmniLight3D.new()
 	magenta.light_color = Color(1.0, 0.16, 0.43)
 	magenta.light_energy = 2.0
@@ -286,7 +294,7 @@ func _build_level() -> void:
 	wall_mat.albedo_color = Color(0.035, 0.038, 0.085)
 	wall_mat.emission_enabled = true
 	wall_mat.emission = Color(0.35, 0.06, 0.16)
-	wall_mat.emission_energy_multiplier = 0.06
+	wall_mat.emission_energy_multiplier = 0.09
 	wall_mat.metallic = 0.55
 	wall_mat.roughness = 0.5
 	var trim_mat := StandardMaterial3D.new()

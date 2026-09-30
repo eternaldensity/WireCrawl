@@ -533,6 +533,7 @@ func toggle_pause() -> void:
 		box.custom_minimum_size = Vector2(400, 280)
 		box.name = "PauseBox"
 		dim.add_child(box)
+		WCBrackets.attach_to(box, NEON_CYAN)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 8)
 		box.add_child(v)
@@ -581,6 +582,7 @@ func _show_debrief(victory: bool, summary: Dictionary) -> void:
 	var box := _panel(NEON_YELLOW if victory else NEON_PINK)
 	box.custom_minimum_size = Vector2(560, 0)
 	center.add_child(box)
+	WCBrackets.attach_to(box, NEON_YELLOW if victory else NEON_PINK)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	box.add_child(v)

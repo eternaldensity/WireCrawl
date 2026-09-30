@@ -106,6 +106,7 @@ func _build_visual(sc: float) -> void:
 	var col: Color = data.get("color", Color.RED)
 	_mat = _armor(col)
 	_rig = Node3D.new()
+	_rig.name = "Rig"
 	add_child(_rig)
 	var glow := _glow(col, 3.2)
 	var white := _glow(Color.WHITE, 5.0)
@@ -200,6 +201,23 @@ func _build_visual(sc: float) -> void:
 	_ring.material_override = rm
 	_ring.position.y = 0.06
 	add_child(_ring)
+	# X-ray silhouette: same core mesh, depth-test off, slightly larger —
+	# readable through walls from the isometric camera.
+	var sil := MeshInstance3D.new()
+	sil.name = "XRay"
+	sil.mesh = _body.mesh
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = col
+	smat.emission_enabled = true
+	smat.emission = col.lightened(0.3)
+	smat.emission_energy_multiplier = 2.2
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.no_depth_test = true
+	sil.material_override = smat
+	sil.position = _body.position
+	sil.scale = Vector3.ONE * 1.07
+	sil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_rig.add_child(sil)
 	if is_boss:
 		AudioDirector.play("boss")
 	# materialize-in effect

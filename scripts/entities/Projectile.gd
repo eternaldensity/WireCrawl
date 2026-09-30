@@ -38,7 +38,13 @@ static func spawn(parent: Node, pos: Vector3, dir: Vector3, opts: Dictionary) ->
 
 func _build_visual() -> void:
 	collision_layer = 16
-	collision_mask = 0
+	# Enemies live on physics layer 3 (value 4), player on layer 2 (value 2),
+	# world statics on layer 1. A zero mask detects nothing (guns once fired
+	# blanks) — set per faction.
+	if faction == "player":
+		collision_mask = 1 | 4
+	else:
+		collision_mask = 1 | 2
 	monitoring = true
 	monitorable = false
 	var shape := CollisionShape3D.new()
@@ -52,20 +58,28 @@ func _build_visual() -> void:
 	sm.height = 0.32
 	_mesh.mesh = sm
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
+	mat.albedo_color = Color.WHITE
 	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 4.0
+	mat.emission = color.lightened(0.4)
+	mat.emission_energy_multiplier = 5.0
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mesh.material_override = mat
 	add_child(_mesh)
-	# Trail glow quad
+	# speed-stretched tracer tail
 	var trail := MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = Vector3(0.08, 0.08, 0.9)
+	bm.size = Vector3(0.1, 0.1, 0.7 + speed * 0.03)
 	trail.mesh = bm
-	trail.material_override = mat
-	trail.position = Vector3(0, 0, 0.45)
+	var tmat := StandardMaterial3D.new()
+	tmat.albedo_color = color
+	tmat.emission_enabled = true
+	tmat.emission = color
+	tmat.emission_energy_multiplier = 3.0
+	tmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tmat.albedo_color.a = 0.7
+	trail.material_override = tmat
+	trail.position = Vector3(0, 0, (0.7 + speed * 0.03) / 2.0)
 	add_child(trail)
 	body_entered.connect(_on_body)
 	area_entered.connect(_on_area)
@@ -108,9 +122,28 @@ func _resolve_hit(node: Node) -> void:
 			pierce -= 1
 		else:
 			queue_free()
+	elif faction == "player" and node.is_in_group("crates"):
+		if node.has_method("take_hit"):
+			node.take_hit(damage, dmg_type, tags, global_position)
+		AudioDirector.play("hit", 0.8)
+		if splash > 0.0:
+			_explode()
+			queue_free()
+			return
+		if pierce > 0:
+			pierce -= 1
+		else:
+			if get_parent() != null and get_parent().has_method("spawn_impact_fx"):
+				get_parent().spawn_impact_fx(global_position, color)
+			queue_free()
 	elif faction == "enemy" and node.is_in_group("player"):
 		if node.has_method("take_hit"):
 			node.take_hit(damage, dmg_type, tags, global_position)
+		queue_free()
+	elif node is StaticBody3D:
+		# walls / floor: spark + die (no damage sponsors here).
+		if get_parent() != null and get_parent().has_method("spawn_impact_fx"):
+			get_parent().spawn_impact_fx(global_position, color)
 		queue_free()
 
 func _explode_if_needed() -> void:

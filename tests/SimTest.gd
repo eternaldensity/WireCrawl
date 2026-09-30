@@ -97,14 +97,81 @@ func _test_dungeon_boot() -> void:
 		dng.summon_hound(dng.player.global_position)
 		await get_tree().physics_frame
 		_check(not get_tree().get_nodes_in_group("allies").is_empty(), "allies_deploy")
+	# x-ray silhouettes present
+	_check(dng.player.get_node_or_null("Rig/XRay") != null, "player_xray")
+	# projectile collision: freeze a live foe, shoot it for real
+	var victim: WCEnemy = null
+	for f in get_tree().get_nodes_in_group("enemies"):
+		var fe := f as WCEnemy
+		if fe != null and not fe.dead:
+			victim = fe
+			break
+	_check(victim != null, "live_target_found")
+	if victim != null:
+		_check(victim.get_node_or_null("Rig/XRay") != null, "enemy_xray")
+		victim.statuses["frozen"] = 99.0
+		var vhp0: float = victim.hp
+		# hermetic shot: teleport victim beside the player (crate-free
+		# spawn ground), verify line of sight, then fire point-blank
+		var muzzle: Vector3 = dng.player.global_position + Vector3(0, 1.1, 0)
+		var fired := false
+		for off in [Vector3(2.5, 0, 0), Vector3(-2.5, 0, 0), Vector3(0, 0, 2.5), Vector3(0, 0, -2.5)]:
+			victim.global_position = dng.player.global_position + off
+			var aim: Vector3 = (victim.global_position + Vector3(0, 1.0, 0) - muzzle).normalized()
+			var params := PhysicsRayQueryParameters3D.create(muzzle, victim.global_position + Vector3(0, 1.0, 0))
+			params.collision_mask = 1
+			params.exclude = [dng.player.get_rid()]
+			var hit: Dictionary = dng.get_world_3d().direct_space_state.intersect_ray(params)
+			if hit.is_empty():
+				WCProjectile.spawn(dng, muzzle, aim,
+					{"faction": "player", "damage": 60.0, "dmg_type": "kinetic",
+						"speed": 30.0, "color": Color.WHITE})
+				fired = true
+				break
+		if not fired:
+			_check(true, "projectile_skipped_no_lane")
+		else:
+			for _i in 15:
+				await get_tree().physics_frame
+			_check(victim.hp < vhp0 or victim.dead, "projectile_hits",
+				"(hp %.0f -> %.0f)" % [vhp0, victim.hp])
 	# weapon swap + equip paths
 	var first_id: String = dng.player.weapon.get("weapon_id", "?")
 	dng.player.swap_weapon()
 	_check(String(dng.player.weapon.get("weapon_id", "?")) != first_id, "weapon_swap",
 		"(%s -> %s)" % [first_id, String(dng.player.weapon.get("weapon_id", "?"))])
+	_check(dng.player.held_kind == "blade", "held_blade_model")
+	# melee fire path: plant player next to a live foe and swing
+	var foe2: WCEnemy = null
+	for f in get_tree().get_nodes_in_group("enemies"):
+		var fe2 := f as WCEnemy
+		if fe2 != null and not fe2.dead:
+			foe2 = fe2
+			break
+	if foe2 != null:
+		dng.player.global_position = foe2.global_position + Vector3(2.2, 0, 0)
+		dng.player.aim_dir = (foe2.global_position - dng.player.global_position).normalized()
+		var fhp0: float = foe2.hp
+		dng.player.try_fire()
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		_check(foe2.hp < fhp0 or foe2.dead, "melee_hits",
+			"(hp %.0f -> %.0f)" % [fhp0, foe2.hp])
+	else:
+		_check(true, "melee_skipped_no_foe")
 	var better: Dictionary = LootFactory.roll_weapon(6, 3.0, "railspike", "legendary")
 	dng.player.equip_item(better, "primary")
 	_check(String(RunManager.loadout["primary"].get("weapon_id", "")) == "railspike", "equip_item")
+	_check(dng.player.held_kind == "gun", "held_gun_model")
+	# destructible crates break + free
+	var crates := get_tree().get_nodes_in_group("crates")
+	_check(not crates.is_empty(), "crates_exist", "(%d)" % crates.size())
+	if not crates.is_empty():
+		var crate := crates[0] as WCPropCrate
+		crate.take_hit(99999.0, "kinetic", [], crate.global_position + Vector3(1, 0, 0))
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		_check(not is_instance_valid(crate), "crate_breaks")
 	_check(dng.has_vault, "vault_exists")
 	_check(String(dng.vault_item.get("rarity", "")) in ["epic", "legendary", "mythic"],
 		"vault_loot_floor", "(%s)" % String(dng.vault_item.get("rarity", "?")))

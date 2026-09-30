@@ -50,24 +50,30 @@ below. Autoloads boot in the order listed in `project.godot`.
   Post-layout, `_build_vault` seeds a far-room vault (elite guards + epic+
   loot) on either backend.
 - Owns FX API used by entities: `float_text, spawn_damage_number,
-  spawn_blast_fx, spawn_flash_fx, spawn_slash_fx, spawn_beam_fx`; program AoE: `deploy_turret, summon_hound, blackout_blast,
+  spawn_blast_fx, spawn_flash_fx, spawn_impact_fx, spawn_slash_fx (crescent),
+  spawn_beam_fx`; room tints + wall window strips dress sectors; program AoE: `deploy_turret, summon_hound, blackout_blast,
   system_shock`; flow: `on_enemy_died, offer_loot, summon_adds`.
 - Signals: `room_cleared, boss_spawned, extraction_ready, loot_offered`.
   Kill-streak callouts (double/rampage/overdrive) with energy-free fanfare.
 
 ## 9. Entities (`scripts/entities/`)
 - `WCPlayer`: input → move/aim/fire/dash/programs; reads RunManager for vitals,
-  LootFactory item for damage; writes via RunManager/SynergyEngine/Dungeon.
+  LootFactory item for damage; visible blade/gun models rebuilt on swap/equip;
+  X-ray silhouette; writes via RunManager/SynergyEngine/Dungeon.
 - `WCEnemy`: data-driven AI (`chaser/dasher/shooter/tank/boss`), statuses,
   synergy event resolution, `make_elite()` champions, procedural rig models
   (mohawks, blades, rotors, robes+orbiting shards, pauldrons, boss crowns),
   walk-bob/sway locomotion, drops via `dungeon.on_enemy_died`.
-- `WCProjectile`: faction-based hit resolution, pierce/splash/arc.
-- `WCPickup`: magnet + `player.collect(kind, amount, item)`.
+- `WCProjectile`: faction-based hit resolution (player mask hits world+foes,
+  enemy mask hits world+player), pierce/splash/arc, wall impact FX.
+- `WCPickup`: magnet + `player.collect(kind, amount, item)`; distinct models
+  (coin, cross, diamond, cache + rarity beam).
+- `WCPropCrate`: destructible cover with hazard-stripe affordance, loot pop.
 - `WCAlly`: turret/hound deployables scaling with program power.
 
 ## 10. UI (`scripts/ui/HUD.gd`, `scripts/ui/WCTheme.gd`, `scripts/Main.gd`)
-- `WCTheme`: single neon theme (buttons, sliders, panels, headers, sections).
+- `WCTheme`: single neon theme (buttons, sliders, panels, headers, sections,
+  corner brackets via `WCBrackets`).
   Assigned to every root Control (title shell, HUD roots, pause, debrief).
 - Title shell: nav rail (DEPLOY / CHROME / PROFILE / SETTINGS) + scrollable
   content; selections re-render the tab only (`_refresh_title`).

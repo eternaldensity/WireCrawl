@@ -243,10 +243,18 @@ func _build_level() -> void:
 	trim_mat.emission = Color(0.02, 0.85, 0.91)
 	trim_mat.emission_energy_multiplier = 3.0
 	trim_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var win_pink := StandardMaterial3D.new()
+	win_pink.albedo_color = Color(1.0, 0.16, 0.43)
+	win_pink.emission_enabled = true
+	win_pink.emission = Color(1.0, 0.16, 0.43)
+	win_pink.emission_energy_multiplier = 2.6
+	win_pink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var walls := StaticBody3D.new()
 	walls.collision_layer = 1
 	walls.collision_mask = 0
 	add_child(walls)
+	var wlrng := RandomNumberGenerator.new()
+	wlrng.seed = int(layout["seed"]) ^ 0xbeef
 	for y in h:
 		var x := 0
 		while x < w:
@@ -278,11 +286,61 @@ func _build_level() -> void:
 				trim.material_override = trim_mat if (y % 2 == 0) else wall_mat
 				trim.position = Vector3(cx, 3.45, cz - CELL / 2.0 + 0.06)
 				walls.add_child(trim)
+				# lit window strips on the floor-facing side
+				var mx := x + (x2 - x) / 2
+				var faced := 0
+				for face in [-1, 1]:
+					var ny: int = y + face
+					if ny >= 0 and ny < h and tiles[ny * w + mx] != DungeonGen.TILE_VOID:
+						faced = face
+				if faced != 0 and wlrng.randf() < 0.8:
+					var span := x2 - x
+					var nwin := clampi(span / 4, 1, 3)
+					for k in nwin:
+						var wcell := x + 1 + int(float(maxi(span - 2, 1)) * (float(k) + 0.5) / float(nwin))
+						var wx := ox + (float(wcell) + 0.5) * CELL
+						var wz := oz + (float(y) + 0.5) * CELL + float(faced) * (CELL / 2.0 + 0.06)
+						var win := MeshInstance3D.new()
+						var wqm := QuadMesh.new()
+						wqm.size = Vector2(1.7, 0.9)
+						win.mesh = wqm
+						win.material_override = trim_mat if ((x + k) % 2 == 0) else win_pink
+						win.position = Vector3(wx, 2.1, wz)
+						if faced < 0:
+							win.rotation.y = PI
+						walls.add_child(win)
 				x = x2
 			else:
 				x += 1
+	_room_tints()
 	_build_props(ox, oz)
 	_build_exit(ox, oz)
+
+func _room_tints() -> void:
+	## Subtle per-room floor glow so sectors read as distinct zones.
+	var cols := [Color(0.02, 0.85, 0.91), Color(1.0, 0.16, 0.43),
+		Color(0.976, 0.941, 0.008), Color(0.55, 0.4, 1.0)]
+	var ti := 0
+	for r in layout["rooms"] as Array:
+		var room := r as Rect2i
+		var col: Color = cols[ti % cols.size()]
+		ti += 1
+		var q := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(float(room.size.x) * CELL * 0.94, float(room.size.y) * CELL * 0.94)
+		q.mesh = qm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(col.r, col.g, col.b, 0.07)
+		mat.emission_enabled = true
+		mat.emission = col
+		mat.emission_energy_multiplier = 0.5
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		q.material_override = mat
+		q.rotation.x = -PI / 2.0
+		q.position = _cell_to_world(Vector2i(room.position.x + room.size.x / 2,
+			room.position.y + room.size.y / 2)) + Vector3(0, 0.025, 0)
+		add_child(q)
 
 func _is_wall_cell(tiles: PackedByteArray, w: int, h: int, x: int, y: int) -> bool:
 	if tiles[y * w + x] != DungeonGen.TILE_VOID:
@@ -311,11 +369,6 @@ func _build_props(ox: float, oz: float) -> void:
 	var tiles: PackedByteArray = layout["tiles"]
 	var w: int = layout["w"]
 	var h: int = layout["h"]
-	var crate_mat := StandardMaterial3D.new()
-	crate_mat.albedo_color = Color(0.05, 0.06, 0.1)
-	crate_mat.emission_enabled = true
-	crate_mat.emission = Color(0.976, 0.941, 0.008)
-	crate_mat.emission_energy_multiplier = 0.5
 	var holo_colors := [Color(0.02, 0.85, 0.91), Color(1.0, 0.16, 0.43), Color(0.976, 0.941, 0.008)]
 	var props := StaticBody3D.new()
 	props.collision_layer = 1
@@ -337,20 +390,9 @@ func _build_props(ox: float, oz: float) -> void:
 			var wp := _cell_to_world(Vector2i(cx, cy))
 			if wp.distance_to(_cell_to_world(layout["spawn"])) < 6.0:
 				continue
-			var crate := MeshInstance3D.new()
-			var bm := BoxMesh.new()
-			var s := rng.randf_range(0.8, 1.4)
-			bm.size = Vector3(s, s, s)
-			crate.mesh = bm
-			crate.material_override = crate_mat
-			crate.position = wp + Vector3(rng.randf_range(-1, 1), s / 2.0, rng.randf_range(-1, 1))
-			props.add_child(crate)
-			var cs := CollisionShape3D.new()
-			var bs := BoxShape3D.new()
-			bs.size = Vector3(s, s, s)
-			cs.shape = bs
-			cs.position = crate.position
-			props.add_child(cs)
+			var crate := WCPropCrate.spawn(props, wp + Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)),
+				rng.randf_range(0.8, 1.4))
+			crate.dungeon = self
 			placed += 1
 			if placed > 40:
 				break
@@ -848,7 +890,32 @@ func spawn_flash_fx(pos: Vector3, color: Color) -> void:
 	tw.tween_property(m, "transparency", 1.0, 0.09)
 	tw.chain().tween_callback(m.queue_free)
 
+func spawn_impact_fx(pos: Vector3, color: Color) -> void:
+	## Wall/floor hit: hot flash + spark ring + debris kick.
+	spawn_flash_fx(pos, color.lightened(0.4))
+	var m := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.12
+	tm.outer_radius = 0.3
+	m.mesh = tm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 4.0
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.material_override = mat
+	fx_layer.add_child(m)
+	m.global_position = pos
+	var tw := m.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(m, "scale", Vector3.ONE * 2.6, 0.22)
+	tw.tween_property(m, "transparency", 1.0, 0.22)
+	tw.chain().tween_callback(m.queue_free)
+
 func spawn_blast_fx(pos: Vector3, radius: float, color: Color) -> void:
+	spawn_flash_fx(pos, color.lightened(0.5))
 	var m := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.5
@@ -871,25 +938,28 @@ func spawn_blast_fx(pos: Vector3, radius: float, color: Color) -> void:
 	tw.chain().tween_callback(m.queue_free)
 
 func spawn_slash_fx(pos: Vector3, dir: Vector3, color: Color) -> void:
-	var m := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(2.4, 0.12, 0.5)
-	m.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 4.0
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.material_override = mat
-	fx_layer.add_child(m)
-	m.global_position = pos
-	m.rotation.y = atan2(-dir.x, -dir.z)
-	var tw := m.create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(m, "scale", Vector3(1.6, 1, 1), 0.15)
-	tw.tween_property(m, "transparency", 1.0, 0.18)
-	tw.chain().tween_callback(m.queue_free)
+	## Melee crescent: three fanned arcs + hot core line.
+	var base_yaw := atan2(-dir.x, -dir.z)
+	for k in [-0.55, 0.0, 0.55]:
+		var m := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(2.6 if k == 0.0 else 1.8, 0.12, 0.5)
+		m.mesh = bm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		mat.emission_enabled = true
+		mat.emission = color.lightened(0.3) if k == 0.0 else color
+		mat.emission_energy_multiplier = 5.0 if k == 0.0 else 3.0
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.material_override = mat
+		fx_layer.add_child(m)
+		m.global_position = pos
+		m.rotation.y = base_yaw + k
+		var tw := m.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(m, "scale", Vector3(1.5, 1, 1), 0.16)
+		tw.tween_property(m, "transparency", 1.0, 0.18)
+		tw.chain().tween_callback(m.queue_free)
 
 func spawn_beam_fx(a: Vector3, b: Vector3, color: Color) -> void:
 	var m := MeshInstance3D.new()

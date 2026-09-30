@@ -30,8 +30,8 @@ var _body: MeshInstance3D
 var _rig: Node3D
 var _shell: Array = []
 var _mat: StandardMaterial3D
-var _gun: MeshInstance3D
-var _gun_tip: MeshInstance3D
+var held: Node3D
+var held_kind := "gun"
 var camera: Camera3D
 
 func _ready() -> void:
@@ -52,6 +52,7 @@ func _ready() -> void:
 func _build_visual() -> void:
 	var tint: Color = GameDB.ORIGINS.get(RunManager.origin, {}).get("color", Color.CYAN)
 	_rig = Node3D.new()
+	_rig.name = "Rig"
 	add_child(_rig)
 	_mat = StandardMaterial3D.new()
 	_mat.albedo_color = Color(0.08, 0.08, 0.12)
@@ -82,20 +83,78 @@ func _build_visual() -> void:
 	# shoulder lamp (origin color beacon)
 	_pbox(Vector3(0.22, 0.18, 0.3), Vector3(-0.5, 1.45, 0), visor_mat)
 	_pbox(Vector3(0.22, 0.3, 0.3), Vector3(0.5, 1.4, 0), _mat)
-	# gun with glow tip
-	_gun = MeshInstance3D.new()
-	var gm := BoxMesh.new()
-	gm.size = Vector3(0.16, 0.16, 0.9)
-	_gun.mesh = gm
-	var gmat := StandardMaterial3D.new()
-	gmat.albedo_color = Color(0.1, 0.1, 0.12)
-	gmat.emission_enabled = true
-	gmat.emission = Color(1.0, 0.16, 0.43)
-	gmat.emission_energy_multiplier = 2.0
-	_gun.material_override = gmat
-	_gun.position = Vector3(0.45, 0.9, 0.3)
-	_rig.add_child(_gun)
-	_gun_tip = _pbox(Vector3(0.18, 0.18, 0.12), Vector3(0.45, 0.9, 0.78), core_mat)
+	_rebuild_held()
+	# X-ray silhouette so the rig reads through walls.
+	var sil := MeshInstance3D.new()
+	sil.name = "XRay"
+	var sm := BoxMesh.new()
+	sm.size = Vector3(0.85, 1.05, 0.6)
+	sil.mesh = sm
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = tint
+	smat.emission_enabled = true
+	smat.emission = tint.lightened(0.3)
+	smat.emission_energy_multiplier = 2.2
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.no_depth_test = true
+	sil.material_override = smat
+	sil.position = Vector3(0, 0.95, 0)
+	sil.scale = Vector3.ONE * 1.07
+	sil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_rig.add_child(sil)
+
+func _rebuild_held() -> void:
+	## Visible held weapon: mono-blade for melee archetypes, distinct gun
+	## shapes per ranged archetype, glow-tinted by damage type.
+	if held != null and is_instance_valid(held):
+		for ch in held.get_children():
+			_shell.erase(ch)
+		held.queue_free()
+	held = Node3D.new()
+	_rig.add_child(held)
+	var dtype := String(wbase.get("dmg_type", "kinetic"))
+	var dcol: Color = GameDB.DAMAGE_COLORS.get(dtype, Color.WHITE)
+	var darkm := StandardMaterial3D.new()
+	darkm.albedo_color = Color(0.09, 0.09, 0.12)
+	darkm.emission_enabled = true
+	darkm.emission = Color(0.3, 0.3, 0.4)
+	darkm.emission_energy_multiplier = 0.4
+	darkm.metallic = 0.8
+	var glowm := StandardMaterial3D.new()
+	glowm.albedo_color = dcol
+	glowm.emission_enabled = true
+	glowm.emission = dcol
+	glowm.emission_energy_multiplier = 4.0
+	glowm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if not bool(wbase.get("projectile", true)):
+		held_kind = "blade"
+		_hbox(Vector3(0.16, 0.2, 0.16), Vector3(0.5, 1.0, 0.35), darkm)
+		_hbox(Vector3(0.07, 0.1, 1.9), Vector3(0.5, 1.05, 1.3), darkm)
+		_hbox(Vector3(0.03, 0.05, 1.9), Vector3(0.5, 1.12, 1.3), glowm)
+		if String(weapon.get("weapon_id", "")) == "whip":
+			_hbox(Vector3(0.05, 0.05, 2.6), Vector3(0.5, 0.9, 1.6), glowm)
+	else:
+		held_kind = "gun"
+		var wid := String(weapon.get("weapon_id", "smg"))
+		var heavy := wid in ["plasma", "thumper", "toxin"]
+		var long := wid in ["railspike", "plasma"]
+		_hbox(Vector3(0.2, 0.24, 0.75 if not heavy else 0.95), Vector3(0.5, 0.95, 0.35), darkm)
+		_hbox(Vector3(0.1, 0.1, 1.0 if long else 0.55), Vector3(0.5, 1.0, 0.95 if long else 0.8), darkm)
+		_hbox(Vector3(0.14, 0.14, 0.14), Vector3(0.5, 1.0, 1.35 if long else 1.0), glowm)
+		_hbox(Vector3(0.06, 0.12, 0.06), Vector3(0.5, 1.15, 0.3), glowm)
+		if wid == "scattergun":
+			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.42, 1.0, 0.7), darkm)
+			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.58, 1.0, 0.7), darkm)
+
+func _hbox(size: Vector3, pos: Vector3, mat: Material) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = pos
+	held.add_child(mi)
+	_shell.append(mi)
 
 func _pbox(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -118,6 +177,7 @@ func _apply_run_stats() -> void:
 	programs = RunManager.loadout.get("programs", ["blink"])
 	if programs.size() < 3:
 		programs = (programs + ["blink", "blink", "blink"]).slice(0, 3)
+	_rebuild_held()
 
 func stat_rate_mult() -> float:
 	var m := 1.0
@@ -287,6 +347,15 @@ func _melee_arc(pellets: int) -> void:
 			RunManager.heal(dmg * 0.03)
 		if chain > 0:
 			(e as WCEnemy)._chain_lightning(chain, dmg * 0.5)
+	for cr in get_tree().get_nodes_in_group("crates"):
+		var cto: Vector3 = (cr as Node3D).global_position - global_position
+		cto.y = 0.0
+		if cto.length() > wrange + 0.6:
+			continue
+		if cto.normalized().angle_to(aim_dir) > 1.1:
+			continue
+		(cr as WCPropCrate).take_hit(dmg, dtype, _weapon_tags() + ["melee"], global_position)
+		wave += 1
 	if dungeon != null and dungeon.has_method("spawn_slash_fx"):
 		dungeon.spawn_slash_fx(global_position + aim_dir * 1.6, aim_dir,
 			GameDB.DAMAGE_COLORS.get(dtype, Color.WHITE))
@@ -300,6 +369,7 @@ func swap_weapon() -> void:
 	RunManager.loadout["primary"] = sec
 	weapon = sec
 	wbase = GameDB.WEAPONS.get(String(weapon.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+	_rebuild_held()
 	fire_cd = maxf(fire_cd, 0.25)
 	AudioDirector.play("ui")
 	if dungeon != null and dungeon.has_method("float_text"):
@@ -314,6 +384,7 @@ func equip_item(item: Dictionary, slot: String) -> void:
 	if slot == "primary":
 		weapon = item
 		wbase = GameDB.WEAPONS.get(String(item.get("weapon_id", "smg")), GameDB.WEAPONS["smg"])
+		_rebuild_held()
 	AudioDirector.play("levelup")
 	if dungeon != null and dungeon.has_method("float_text"):
 		dungeon.float_text(global_position + Vector3(0, 2.4, 0),

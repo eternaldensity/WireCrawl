@@ -213,6 +213,7 @@ func _build_loot_panel() -> void:
 	row.add_child(bx)
 	bx.pressed.connect(func(): loot_panel.visible = false)
 	loot_panel.visible = false
+	WCBrackets.attach_to(loot_panel, Color(0.976, 0.941, 0.008))
 
 func show_loot(item: Dictionary) -> void:
 	pending_loot = item

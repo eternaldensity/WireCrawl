@@ -2,6 +2,16 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.7 — combat readability pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 8.9 | Ranged combat actually works now (projectile masks were zero — guns fired blanks); destructible cover; melee hits crates. |
+| Usability | 8.8 | X-ray silhouettes through walls; held weapon reads archetype; pickup shapes + rarity beams; bracket-framed panels. |
+| Layout | 8.7 | Room tints + wall windows break repetition. |
+| Content | 8.7 | Unchanged systems. |
+| Visuals | 9.1 | Tracer rounds, impact rings, crescent slashes, dressed walls. |
+| **Mean** | **8.84** | Bar cleared. |
+
 ## v0.6 — presentation pass (this commit)
 | Axis | Score | Notes |
 |---|---|---|

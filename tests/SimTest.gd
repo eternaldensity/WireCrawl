@@ -97,6 +97,9 @@ func _test_dungeon_boot() -> void:
 	var better: Dictionary = LootFactory.roll_weapon(6, 3.0, "railspike", "legendary")
 	dng.player.equip_item(better, "primary")
 	_check(String(RunManager.loadout["primary"].get("weapon_id", "")) == "railspike", "equip_item")
+	_check(dng.has_vault, "vault_exists")
+	_check(String(dng.vault_item.get("rarity", "")) in ["epic", "legendary", "mythic"],
+		"vault_loot_floor", "(%s)" % String(dng.vault_item.get("rarity", "?")))
 	dng.queue_free()
 	RunManager.end_run(false)
 

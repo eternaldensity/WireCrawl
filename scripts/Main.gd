@@ -94,7 +94,7 @@ func show_title() -> void:
 	bg.color = BG
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.add_child(bg)
-	_rain_lines(bg)
+	_data_rain(bg)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", 36)
@@ -298,13 +298,42 @@ func _volume_row(setting: String, title: String) -> Control:
 		_apply_volumes())
 	return h
 
+func _data_rain(parent: Control) -> void:
+	## Matrix-style falling glyph columns behind the title.
+	_rain_lines(parent)
+	var glyphs := ["01", "死", "電", "脳", ">><<", "##", "07", "夢", "AX", "99", "λ", "街"]
+	var cols := [NEON_CYAN, NEON_PINK, NEON_YELLOW, Color(0.5, 1.0, 0.6)]
+	for i in 26:
+		var l := Label.new()
+		var col: Color = cols[i % cols.size()]
+		l.add_theme_font_size_override("font_size", 13)
+		l.add_theme_color_override("font_color", col)
+		l.modulate.a = randf_range(0.15, 0.5)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var x := randf_range(0.0, 1240.0)
+		l.position = Vector2(x, randf_range(-700.0, 0.0))
+		parent.add_child(l)
+		_fall_loop(l, glyphs)
+
+func _fall_loop(l: Label, glyphs: Array) -> void:
+	if not is_instance_valid(l):
+		return
+	var lines := []
+	for _i in randi_range(4, 10):
+		lines.append(glyphs[randi() % glyphs.size()])
+	l.text = "\n".join(lines)
+	l.position.y = -260.0
+	var tw := l.create_tween()
+	tw.tween_property(l, "position:y", 760.0, randf_range(5.0, 11.0))
+	tw.tween_callback(func(): _fall_loop(l, glyphs))
+
 func _rain_lines(parent: Control) -> void:
 	# subtle animated scanline overlay (cheap cyberpunk vibe)
-	var lines := ColorRect.new()
-	lines.color = Color(0.02, 0.85, 0.91, 0.03)
-	lines.set_anchors_preset(Control.PRESET_FULL_RECT)
-	lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(lines)
+	var overlay := ColorRect.new()
+	overlay.color = Color(0.02, 0.85, 0.91, 0.03)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(overlay)
 
 # ================= DUNGEON =================
 func start_dungeon() -> void:
@@ -335,6 +364,8 @@ func _wire_dungeon() -> void:
 	dungeon.loot_offered.connect(func(item):
 		hud._on_loot(item)
 		hud.show_loot(item))
+	dungeon.boss_spawned.connect(func(boss_name: String):
+		hud.announce("⚠ " + boss_name + " ⚠", Color(1.0, 0.16, 0.43)))
 	dungeon.extraction_ready.connect(func(): hud.announce("EXTRACT — HEAD TO THE GREEN BEAM", Color(0.3, 1.0, 0.5)))
 	if not RunManager.run_ended.is_connected(_on_run_ended):
 		RunManager.run_ended.connect(_on_run_ended)

@@ -23,6 +23,9 @@ var rooms_total := 0
 var boss: WCEnemy = null
 var exit_pos := Vector3.ZERO
 var extracted := false
+var vault_center := Vector3.ZERO
+var has_vault := false
+var vault_item := {}
 var clear_timer := 0.0
 var float_layer: Node3D
 var fx_layer: Node3D
@@ -514,6 +517,7 @@ func _spawn_encounters() -> void:
 	var boss_key := String(contract.get("boss", ""))
 	if boss_key != "":
 		_spawn_boss(boss_key)
+	_build_vault(rng)
 
 func tiles_at(cell: Vector2i) -> int:
 	var w: int = layout["w"]
@@ -538,6 +542,48 @@ func _pick_enemy(rng: RandomNumberGenerator, keys: Array) -> String:
 	if t >= 4:
 		pool += ["brute", "hexer", "hexer"]
 	return pool[rng.randi() % pool.size()]
+
+func _build_vault(rng: RandomNumberGenerator) -> void:
+	## Secret vault: farthest non-exit room gets elite guards + epic+ loot.
+	var rooms: Array = layout.get("rooms", [])
+	var spawn_cell: Vector2i = layout.get("spawn", Vector2i.ZERO)
+	var exit_cell: Vector2i = layout.get("exit", Vector2i.ZERO)
+	var best_room := -1
+	var best_d := -1.0
+	for i in range(1, rooms.size()):
+		var room := rooms[i] as Rect2i
+		var c := Vector2i(room.position.x + room.size.x / 2, room.position.y + room.size.y / 2)
+		if c == exit_cell:
+			continue
+		var d := Vector2(c - spawn_cell).length()
+		if d > best_d:
+			best_d = d
+			best_room = i
+	if best_room < 0:
+		return
+	var vroom := rooms[best_room] as Rect2i
+	var vc := Vector2i(vroom.position.x + vroom.size.x / 2, vroom.position.y + vroom.size.y / 2)
+	vault_center = _cell_to_world(vc)
+	has_vault = true
+	for _g in 2:
+		var cell := Vector2i(rng.randi_range(vroom.position.x + 1, vroom.position.x + vroom.size.x - 2),
+			rng.randi_range(vroom.position.y + 1, vroom.position.y + vroom.size.y - 2))
+		if not DungeonGen.is_walkable(layout, cell.x, cell.y):
+			continue
+		var guard := WCEnemy.spawn(self, ["enforcer", "hexer", "brute"][rng.randi() % 3],
+			_cell_to_world(cell) + Vector3(0, 0.5, 0), threat + 1)
+		guard.dungeon = self
+		guard.make_elite()
+		enemies_alive += 1
+	vault_item = LootFactory.roll_weapon(threat + 1, RunManager.luck + 1.5)
+	for _r in 5:
+		if String(vault_item.get("rarity", "")) in ["epic", "legendary", "mythic"]:
+			break
+		vault_item = LootFactory.roll_weapon(threat + 1, RunManager.luck + 1.5)
+	RunManager.register_loot(vault_item)
+	WCPickup.spawn(self, vault_center + Vector3(0, 0, 0), "loot", 0, vault_item)
+	WCPickup.spawn(self, vault_center + Vector3(1.5, 0, 0), "health", 40)
+	float_text(vault_center + Vector3(0, 4, 0), "◆ VAULT ◆", Color(0.976, 0.941, 0.008))
 
 func _spawn_boss(boss_key: String) -> void:
 	var c := _cell_to_world(layout["exit"])

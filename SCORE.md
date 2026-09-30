@@ -2,7 +2,17 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.3 — loadout depth + choice pass (this commit)
+## v0.4 — exploration + presentation pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 8.6 | Vault runs reward exploration; boss intro cards clarify objectives. |
+| Usability | 8.5 | Intro cards, vault callouts, compare UI. Missing: rebinding, gamepad. |
+| Layout | 8.6 | Vaults + pillars + loot/ambush rooms on guaranteed-connected sectors. |
+| Content | 8.7 | Vault loot floor, elites, 2 bosses, 6 contracts, full affix/set spread. |
+| Visuals | 8.7 | Title data-rain, skyline, hit-stop, damage numbers, animated holos. |
+| **Mean** | **8.62** | Bar cleared (>=8.6). |
+
+## v0.3 — loadout depth + choice pass
 | Axis | Score | Notes |
 |---|---|---|
 | Gameplay | 8.5 | Dual-weapon swap (TAB/wheel), loot-choice panel, elite champions, cover pillars, damage numbers, kill hit-stop. |

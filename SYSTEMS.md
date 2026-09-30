@@ -47,6 +47,8 @@ below. Autoloads boot in the order listed in `project.godot`.
 - `setup(contract)` BEFORE entering tree → `_ready` builds environment, level,
   player, encounters, camera. Layout comes from the Rust core when the
   extension is loaded (`WCDungeonRust`, see §11), else `DungeonGen`.
+  Post-layout, `_build_vault` seeds a far-room vault (elite guards + epic+
+  loot) on either backend.
 - Owns FX API used by entities: `float_text, spawn_damage_number,
   spawn_blast_fx, spawn_flash_fx, spawn_slash_fx, spawn_beam_fx`; program AoE: `deploy_turret, summon_hound, blackout_blast,
   system_shock`; flow: `on_enemy_died, offer_loot, summon_adds`.

@@ -28,6 +28,7 @@ var target: Node3D = null
 var flying := false
 var dead := false
 var elite := false
+var innate: Array = []
 var strafe_dir := 1.0
 var strafe_t := 0.0
 var windup := 0.0
@@ -81,6 +82,7 @@ func _ready() -> void:
 	statuses = SynergyEngine.empty_statuses()
 	if String(data.get("status", "")) != "":
 		statuses[String(data["status"])] = 999.0  # innate aura carrier
+		innate.append(String(data["status"]))  # auras never self-damage
 	collision_layer = 4
 	collision_mask = 1  # collide with world only (avoid enemy stacking physics)
 	var shape := CollisionShape3D.new()
@@ -293,7 +295,7 @@ func _physics_process(delta: float) -> void:
 			return
 	# Status tick
 	SynergyEngine.tick(statuses, delta)
-	var dot: float = SynergyEngine.dot_damage(statuses, max_hp, delta)
+	var dot: float = SynergyEngine.dot_damage(statuses, max_hp, delta, innate)
 	if dot > 0.0:
 		_damage_raw(dot)
 		if hp <= 0.0:

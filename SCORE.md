@@ -2,6 +2,13 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.21 — decals + aura fix (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.2 | Hexers no longer corrode themselves (spontaneous deaths fixed). |
+| Visuals | 9.4 | Radial-glow decals on windows/inlays; shared pulsing terminal rings. |
+| **Mean** | **9.13** | Bar cleared. |
+
 ## v0.20 — two-point wall lighting (this commit)
 | Axis | Score | Notes |
 |---|---|---|

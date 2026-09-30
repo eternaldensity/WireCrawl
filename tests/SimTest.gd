@@ -144,6 +144,17 @@ func _test_dungeon_boot() -> void:
 			var chp0: float = champ.max_hp
 			champ.make_elite()
 			_check(champ.elite and champ.max_hp > chp0, "elite_modifier")
+	# auras never self-damage: hexer holds max HP over time unprovoked
+	var hexer := WCEnemy.spawn(dng, "hexer", dng.player.global_position + Vector3(4, 0.5, 0), 1)
+	hexer.dungeon = dng
+	await get_tree().physics_frame
+	var hhp0: float = hexer.hp
+	for _i in 120:
+		await get_tree().physics_frame
+	_check(is_equal_approx(hexer.hp, hhp0), "no_self_dot", "(hp %.1f -> %.1f)" % [hhp0, hexer.hp])
+	hexer.take_hit(999999.0, "kinetic", [], hexer.global_position)
+	for _i in 3:
+		await get_tree().physics_frame
 	if not foes.is_empty():
 		var e: WCEnemy = foes[0] as WCEnemy
 		var kills0: int = RunManager.kills

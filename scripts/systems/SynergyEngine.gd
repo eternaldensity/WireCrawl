@@ -33,9 +33,11 @@ func tick(statuses: Dictionary, delta: float) -> void:
 func has(statuses: Dictionary, id: String) -> bool:
 	return float(statuses.get(id, 0.0)) > 0.0
 
-func dot_damage(statuses: Dictionary, max_hp: float, delta: float) -> float:
+func dot_damage(statuses: Dictionary, max_hp: float, delta: float, skip: Array = []) -> float:
 	var total := 0.0
 	for k in STATUS_DOT.keys():
+		if k in skip:
+			continue
 		if has(statuses, k):
 			total += float(STATUS_DOT[k]) * max_hp * delta
 	return total

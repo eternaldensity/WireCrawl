@@ -31,6 +31,8 @@ var terminals: Array = []
 var zone_names: Array = []
 var cur_zone := 0
 var _zone_t := 0.0
+var _glow_mats := {}
+var _terminal_mat: StandardMaterial3D
 var clear_timer := 0.0
 var float_layer: Node3D
 var fx_layer: Node3D
@@ -206,6 +208,34 @@ func _build_skyline() -> void:
 			crown.position = Vector3(px, bh - 1.75, pz)
 			add_child(crown)
 
+func _glow_mat(col: Color) -> ShaderMaterial:
+	## Radial-falloff glow decal (planar UV): soft neon instead of flat stickers.
+	var key := col.to_html(false)
+	if _glow_mats.has(key):
+		return _glow_mats[key]
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform vec4 glow_color : source_color = vec4(0.02, 0.85, 0.91, 1.0);
+uniform float pulse_speed = 2.0;
+uniform float pulse_amp = 0.18;
+void fragment() {
+	vec2 cuv = UV - vec2(0.5);
+	float d = clamp(length(cuv) * 2.0, 0.0, 1.0);
+	float a = (1.0 - d) * (1.0 - d);
+	float p = 1.0 + pulse_amp * sin(TIME * pulse_speed + UV.x * 6.2831);
+	ALBEDO = glow_color.rgb;
+	EMISSION = glow_color.rgb * 2.2 * p;
+	ALPHA = a * glow_color.a;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("glow_color", col)
+	_glow_mats[key] = m
+	return m
+
 func _neon_grid_material() -> ShaderMaterial:
 	var sh := Shader.new()
 	sh.code = """
@@ -369,7 +399,7 @@ func _build_level() -> void:
 						var wqm := QuadMesh.new()
 						wqm.size = Vector2(1.7, 0.9)
 						win.mesh = wqm
-						win.material_override = run_trim if ((x + k) % 2 == 0) else win_pink
+						win.material_override = _glow_mat(Color(0.02, 0.85, 0.91) if ((x + k) % 2 == 0) else Color(1.0, 0.16, 0.43))
 						win.position = Vector3(wx, 2.1, wz)
 						if faced < 0:
 							win.rotation.y = PI
@@ -379,13 +409,7 @@ func _build_level() -> void:
 						var cqm := QuadMesh.new()
 						cqm.size = Vector2(1.0, 0.5)
 						core.mesh = cqm
-						var cmat := StandardMaterial3D.new()
-						cmat.albedo_color = Color.WHITE
-						cmat.emission_enabled = true
-						cmat.emission = Color(0.85, 0.95, 1.0)
-						cmat.emission_energy_multiplier = 3.5
-						cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-						core.material_override = cmat
+						core.material_override = _glow_mat(Color(0.85, 0.95, 1.0))
 						core.position = Vector3(wx, 2.1, wz + (0.03 if faced >= 0 else -0.03))
 						if faced < 0:
 							core.rotation.y = PI
@@ -528,13 +552,7 @@ func _floor_dressing(parent: Node, rng: RandomNumberGenerator) -> void:
 		else:
 			qm.size = Vector2(0.5, 2.4)
 		quad.mesh = qm
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = col
-		mat.emission_enabled = true
-		mat.emission = col
-		mat.emission_energy_multiplier = rng.randf_range(1.2, 2.4)
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		quad.material_override = mat
+		quad.material_override = _glow_mat(Color(col.r, col.g, col.b, 0.85))
 		quad.rotation.x = -PI / 2.0
 		quad.rotation.z = rng.randf() * PI if kind != 0 else 0.0
 		quad.position = _cell_to_world(Vector2i(cx, cy)) + Vector3(rng.randf_range(-1, 1), 0.03, rng.randf_range(-1, 1))
@@ -605,19 +623,25 @@ func _holo_pillar(parent: Node, pos: Vector3, col: Color, with_light := true) ->
 		light.omni_range = 10.0
 		light.position = pos + Vector3(0, 3.0, 0)
 		parent.add_child(light)
-	# hackable terminal marker: gold ring at the pillar base
+	# hackable terminal marker: shared pulsing gold ring at the pillar base
 	var tring := MeshInstance3D.new()
 	var ttm := TorusMesh.new()
 	ttm.inner_radius = 0.7
 	ttm.outer_radius = 0.9
 	tring.mesh = ttm
-	var tmat := StandardMaterial3D.new()
-	tmat.albedo_color = Color(0.976, 0.941, 0.008)
-	tmat.emission_enabled = true
-	tmat.emission = Color(0.976, 0.941, 0.008)
-	tmat.emission_energy_multiplier = 2.0
-	tmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	tring.material_override = tmat
+	if _terminal_mat == null:
+		_terminal_mat = StandardMaterial3D.new()
+		_terminal_mat.albedo_color = Color(0.35, 0.3, 0.05)
+		_terminal_mat.emission_enabled = true
+		_terminal_mat.emission = Color(0.976, 0.941, 0.008)
+		_terminal_mat.emission_energy_multiplier = 1.1
+		_terminal_mat.metallic = 0.6
+		_terminal_mat.roughness = 0.4
+		var pulse := create_tween()
+		pulse.set_loops()
+		pulse.tween_property(_terminal_mat, "emission_energy_multiplier", 1.9, 1.2).set_ease(Tween.EASE_IN_OUT)
+		pulse.tween_property(_terminal_mat, "emission_energy_multiplier", 1.1, 1.2).set_ease(Tween.EASE_IN_OUT)
+	tring.material_override = _terminal_mat
 	tring.position = pos + Vector3(0, 0.08, 0)
 	parent.add_child(tring)
 	terminals.append({"pos": pos + Vector3(0, 0, 0), "taken": false, "ring": tring})

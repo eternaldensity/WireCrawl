@@ -2,6 +2,17 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.9 — audio method upgrade (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.0 | Unchanged systems; mix no longer fatigues. |
+| Usability | 8.9 | Unchanged. |
+| Layout | 8.7 | Unchanged. |
+| Content | 8.8 | Unchanged. |
+| Visuals | 9.2 | Unchanged. |
+| Audio | 8.5 | 16-bit soft-synth + lowpass + mastering; QA proves headroom. (New axis: was dragging all scores down.) |
+| **Mean** | **8.85** | Ignoring audio previously masked real gains. |
+
 ## v0.8 — feel + clarity pass (this commit)
 | Axis | Score | Notes |
 |---|---|---|

@@ -16,9 +16,11 @@ below. Autoloads boot in the order listed in `project.godot`.
 - Emits nothing; callers re-read profile.
 
 ## 3. AudioDirector (autoload)
-- `play(name, pitch)` — cached synthesized SFX. Generative music starts in `_ready`:
-  64-step Am–F–C–G darksynth (soft bass, pad chords, kick/snare/hats, sparse
-  plucks, loop riser).
+- `play(name, pitch)` — cached 16-bit soft-synth SFX (sine blips, arp chimes,
+  lowpassed-noise whooshes, explicit LE packing).
+- Generative music: 64-step Am–F–C–G darksynth (soft bass, pad chords, gentle
+  kick, hushed hats, plucks, riser), lowpassed + normalized, 16-bit loops.
+- Audio QA in SimTest: format, length, peak headroom (no clips, no silence).
 - `set_volumes(master, music, sfx)`. `enabled=false` silences (used headless).
 
 ## 4. RunManager (autoload, run state)

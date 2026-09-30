@@ -15,6 +15,7 @@ func _ready() -> void:
 	_test_synergies()
 	_test_run_manager()
 	_test_save_roundtrip()
+	_test_audio()
 	await _test_dungeon_boot()
 	await _test_rust_backend()
 	print("---- SIMTEST: %d passed, %d failed ----" % [passes, failures])
@@ -326,3 +327,40 @@ func _test_save_roundtrip() -> void:
 	SaveSystem.add_xp("solo", 5)
 	_check(SaveSystem.origin_level("solo") >= before, "save_xp_persists")
 	_check(SaveSystem.save_profile(), "save_writes")
+
+func _peak_16(data: PackedByteArray) -> int:
+	## Manual little-endian decode (matches AudioDirector._pack_bytes).
+	var peak := 0
+	var i := 0
+	while i + 1 < data.size():
+		var v := int(data[i]) | (int(data[i + 1]) << 8)
+		if v >= 32768:
+			v -= 65536
+		peak = maxi(peak, absi(v))
+		i += 997 * 2  # sparse scan: fast + representative
+	return peak
+
+func _test_audio() -> void:
+	var names := ["shoot", "shoot_heavy", "melee", "hit", "explode", "pickup",
+		"credits", "levelup", "dash", "hurt", "boss", "ui", "synergy", "turret"]
+	var all_ok := true
+	for sfx in names:
+		var w: AudioStreamWAV = AudioDirector._synth(sfx)
+		if w.format != AudioStreamWAV.FORMAT_16_BITS or w.data.size() < 500:
+			all_ok = false
+			break
+		var peak := _peak_16(w.data)
+		if peak < 500 or peak > 32760:
+			all_ok = false
+			break
+	_check(all_ok, "sfx_16bit_headroom")
+	var mb: AudioStreamWAV = AudioDirector.music_bass.stream
+	var mh: AudioStreamWAV = AudioDirector.music_player.stream
+	_check(mb != null and mh != null, "music_streams_present")
+	if mb != null and mh != null:
+		_check(mb.data.size() > 200000 and mh.data.size() > 200000, "music_length",
+			"(%d/%d bytes)" % [mb.data.size(), mh.data.size()])
+		var pl := _peak_16(mb.data)
+		var ph := _peak_16(mh.data)
+		_check(pl > 2000 and pl < 32760 and ph > 1000 and ph < 32760, "music_headroom",
+			"(low=%d high=%d)" % [pl, ph])

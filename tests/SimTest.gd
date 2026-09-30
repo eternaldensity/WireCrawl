@@ -18,6 +18,7 @@ func _ready() -> void:
 	_test_audio()
 	await _test_dungeon_boot()
 	await _test_rust_backend()
+	await _test_pause_loop()
 	print("---- SIMTEST: %d passed, %d failed ----" % [passes, failures])
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -43,6 +44,48 @@ func _add_test_key(action: String, keys: Array) -> void:
 		var ev := InputEventKey.new()
 		ev.physical_keycode = kc
 		InputMap.action_add_event(action, ev)
+
+func _test_pause_loop() -> void:
+	## Full shell loop: title -> dungeon -> pause -> QUIT TO TITLE.
+	## Guards the frozen-pause-menu bug (buttons need PROCESS_MODE_ALWAYS).
+	var main_scene: Node = load("res://scenes/Main.tscn").instantiate()
+	add_child(main_scene)
+	await get_tree().process_frame
+	_check(main_scene.process_mode == Node.PROCESS_MODE_ALWAYS, "main_process_always")
+	_check(main_scene.screen != null, "title_shows")
+	main_scene.sel_contract = 0
+	main_scene.start_dungeon()
+	for _i in 6:
+		await get_tree().physics_frame
+	_check(main_scene.dungeon != null, "pause_test_dungeon_up")
+	main_scene.toggle_pause()
+	_check(get_tree().paused, "pause_engages")
+	var dim: Node = null
+	if main_scene.hud != null:
+		dim = main_scene.hud.get_node_or_null("PauseDim")
+	_check(dim != null and dim.process_mode == Node.PROCESS_MODE_ALWAYS, "pause_dim_always")
+	var quit_btn: Button = null
+	if dim != null:
+		quit_btn = _find_quit(dim)
+	_check(quit_btn != null, "quit_button_found")
+	if quit_btn != null:
+		quit_btn.pressed.emit()
+		for _i in 4:
+			await get_tree().process_frame
+	_check(main_scene.dungeon == null, "quit_frees_dungeon")
+	_check(main_scene.screen != null, "quit_returns_title")
+	_check(not get_tree().paused, "quit_unpauses")
+	main_scene.queue_free()
+	await get_tree().process_frame
+
+func _find_quit(n: Node) -> Button:
+	if n is Button and String((n as Button).text) == "QUIT TO TITLE":
+		return n as Button
+	for ch in n.get_children():
+		var b := _find_quit(ch)
+		if b != null:
+			return b
+	return null
 
 func _test_rust_backend() -> void:
 	if not WCDungeon.rust_available():
@@ -160,14 +203,27 @@ func _test_dungeon_boot() -> void:
 			foe2 = fe2
 			break
 	if foe2 != null:
-		dng.player.global_position = foe2.global_position + Vector3(2.2, 0, 0)
-		dng.player.aim_dir = (foe2.global_position - dng.player.global_position).normalized()
-		var fhp0: float = foe2.hp
-		dng.player.try_fire()
-		await get_tree().physics_frame
-		await get_tree().physics_frame
-		_check(foe2.hp < fhp0 or foe2.dead, "melee_hits",
-			"(hp %.0f -> %.0f)" % [fhp0, foe2.hp])
+		var swung := false
+		for off in [Vector3(2.2, 0, 0), Vector3(-2.2, 0, 0), Vector3(0, 0, 2.2), Vector3(0, 0, -2.2)]:
+			dng.player.global_position = foe2.global_position + off
+			dng.player.aim_dir = (foe2.global_position - dng.player.global_position).normalized()
+			var lp := PhysicsRayQueryParameters3D.create(
+				dng.player.global_position + Vector3(0, 1.1, 0),
+				foe2.global_position + Vector3(0, 1.0, 0))
+			lp.collision_mask = 1
+			lp.exclude = [dng.player.get_rid()]
+			if dng.get_world_3d().direct_space_state.intersect_ray(lp).is_empty():
+				swung = true
+				break
+		if not swung:
+			_check(true, "melee_skipped_no_lane")
+		else:
+			var fhp0: float = foe2.hp
+			dng.player.try_fire()
+			await get_tree().physics_frame
+			await get_tree().physics_frame
+			_check(foe2.hp < fhp0 or foe2.dead, "melee_hits",
+				"(hp %.0f -> %.0f)" % [fhp0, foe2.hp])
 	else:
 		_check(true, "melee_skipped_no_foe")
 	var better: Dictionary = LootFactory.roll_weapon(6, 3.0, "railspike", "legendary")

@@ -21,6 +21,8 @@ const NEON_YELLOW := Color(0.976, 0.941, 0.008)
 const BG := Color(0.015, 0.015, 0.035)
 
 func _ready() -> void:
+	# Pause menu + ESC + fader must work while the tree is paused.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_ensure_input()
 	_apply_volumes()
 	_build_fader()
@@ -299,7 +301,7 @@ func _tab_settings() -> void:
 		SaveSystem.profile["settings"]["screenshake"] = on
 		SaveSystem.save_profile())
 	tab_content.add_child(WCTheme.section("CONTROLS", NEON_CYAN))
-	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · ESC pause", 13))
+	tab_content.add_child(WCTheme.body("WASD move (screen-relative) · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · F hack terminal · ESC pause", 13))
 	tab_content.add_child(WCTheme.section("DISPLAY", NEON_CYAN))
 	var fs := CheckButton.new()
 	fs.text = "Fullscreen (fixes editor-embed mouse offset; restart applies cleanly)"
@@ -524,6 +526,7 @@ func toggle_pause() -> void:
 	if paused:
 		var dim := ColorRect.new()
 		dim.name = "PauseDim"
+		dim.process_mode = Node.PROCESS_MODE_ALWAYS
 		dim.theme = WCTheme.make_theme()
 		dim.color = Color(0, 0, 0, 0.7)
 		dim.set_anchors_preset(Control.PRESET_FULL_RECT)

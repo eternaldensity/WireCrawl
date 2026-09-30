@@ -2,6 +2,16 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.11 — blades, sectors, chrome UI + pause fix (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 9.0 | Pause menu actually works (was fully frozen); melee lunges. |
+| Usability | 9.0 | True binding row, angular chrome-circuit panels, brackets. |
+| Layout | 8.7 | Circuit traces, data pools, pipes, trim palettes. |
+| Content | 8.8 | Unchanged systems. |
+| Visuals | 9.3 | Katana anatomy, 7-shard swoosh, textured UI. |
+| **Mean** | **8.94** | Bar cleared. |
+
 ## v0.10 — composition + screen-relative movement (this commit)
 | Axis | Score | Notes |
 |---|---|---|

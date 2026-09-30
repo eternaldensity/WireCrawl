@@ -133,11 +133,7 @@ func _rebuild_held() -> void:
 	glowm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	if not bool(wbase.get("projectile", true)):
 		held_kind = "blade"
-		_hbox(Vector3(0.16, 0.2, 0.16), Vector3(0.58, 1.0, 0.4), darkm)
-		_hbox(Vector3(0.07, 0.1, 1.9), Vector3(0.62, 1.05, 1.35), darkm)
-		_hbox(Vector3(0.03, 0.05, 1.9), Vector3(0.62, 1.12, 1.35), glowm)
-		if String(weapon.get("weapon_id", "")) == "whip":
-			_hbox(Vector3(0.05, 0.05, 2.6), Vector3(0.58, 0.9, 1.7), glowm)
+		_build_blade(String(weapon.get("weapon_id", "katana")), dcol, darkm, glowm)
 	else:
 		held_kind = "gun"
 		var wid := String(weapon.get("weapon_id", "smg"))
@@ -151,7 +147,32 @@ func _rebuild_held() -> void:
 			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.42, 1.0, 0.7), darkm)
 			_hbox(Vector3(0.16, 0.16, 0.4), Vector3(0.58, 1.0, 0.7), darkm)
 
-func _hbox(size: Vector3, pos: Vector3, mat: Material) -> void:
+func _build_blade(wid: String, dcol: Color, darkm: Material, glowm: Material) -> void:
+	## Katana anatomy per weapon: handle + wrap bands + guard + fuller blade
+	## + clipped tip + glowing edge. Grip sits forward-right, never behind.
+	var gx := 0.58
+	_hbox(Vector3(0.13, 0.15, 0.5), Vector3(gx, 1.0, 0.35), darkm)
+	for wi in 3:
+		_hbox(Vector3(0.15, 0.05, 0.1), Vector3(gx, 1.0, 0.2 + float(wi) * 0.14), glowm)
+	_hbox(Vector3(0.3, 0.06, 0.3), Vector3(gx, 1.0, 0.62), glowm)
+	var blen := 2.0
+	var bwid := 0.09
+	if wid == "blackice":
+		blen = 2.3
+		bwid = 0.14
+	_hbox(Vector3(bwid, 0.1, blen), Vector3(gx + 0.04, 1.05, 0.75 + blen / 2.0), darkm)
+	_hbox(Vector3(0.035, 0.05, blen * 0.9), Vector3(gx + 0.04, 1.1, 0.75 + blen / 2.0), glowm)
+	_hbox(Vector3(0.02, 0.03, blen), Vector3(gx + 0.085, 1.02, 0.75 + blen / 2.0), glowm)
+	var tip := _hbox(Vector3(bwid, 0.08, 0.34), Vector3(gx + 0.04, 1.08, 0.75 + blen + 0.12), darkm)
+	tip.rotation.x = -0.35
+	if wid == "whip":
+		# energy chain: curving links instead of a straight rod
+		for li in 5:
+			var link := _hbox(Vector3(0.07, 0.07, 0.34),
+				Vector3(gx - 0.1 - float(li) * 0.16, 0.95 - float(li) * 0.1, 0.9 + float(li) * 0.42), glowm)
+			link.rotation.y = 0.35 * float(li)
+
+func _hbox(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
@@ -160,6 +181,7 @@ func _hbox(size: Vector3, pos: Vector3, mat: Material) -> void:
 	mi.position = pos
 	held.add_child(mi)
 	_shell.append(mi)
+	return mi
 
 func _pbox(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -364,6 +386,9 @@ func _weapon_tags() -> Array:
 	return tags
 
 func _melee_arc(pellets: int) -> void:
+	# step into the swing: brief lunge along aim (motion only, no i-frames)
+	dash_dir = aim_dir
+	dash_time = maxf(dash_time, 0.12)
 	var wrange: float = float(wbase.get("range", 3.2))
 	var dmg: float = stat_damage()
 	var dtype := String(wbase.get("dmg_type", "kinetic"))

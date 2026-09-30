@@ -79,7 +79,8 @@ below. Autoloads boot in the order listed in `project.godot`.
 - `WCAlly`: turret/hound deployables scaling with program power.
 
 ## 10. UI (`scripts/ui/HUD.gd`, `scripts/ui/WCTheme.gd`, `scripts/Main.gd`)
-- `WCTheme`: single neon theme (buttons, sliders, panels, headers, sections,
+- `WCTheme`: single neon theme — baked angular/chrome/circuit textures
+  (cut corners, sheen, traces), buttons, sliders, headers, sections,
   corner brackets via `WCBrackets`).
   Assigned to every root Control (title shell, HUD roots, pause, debrief).
 - Title shell: nav rail (DEPLOY / CHROME / PROFILE / SETTINGS) + scrollable
@@ -89,7 +90,8 @@ below. Autoloads boot in the order listed in `project.godot`.
   panel (`[1]`/`[2]`/click, 14s timeout, UPGRADE verdict, queued offers) calls
   `WCPlayer.equip_item`. Feed lines expire after 7s.
 - Main owns screen flow + runtime InputMap bootstrap + pause + debrief +
-  run-start fade transition.
+  run-start fade transition. Main + pause menu run PROCESS_MODE_ALWAYS so
+  pause controls (and the HUD binding row: SPACE dash, Q/E slots) work.
 
 ## 11. Rust core (`rust_ext/`, optional)
 - Mirrors §§1,5–7 hot paths (`generate_dungeon`, `roll_rarity`, `xp_for_level`,

@@ -39,7 +39,7 @@ func _ready() -> void:
 	RunManager.objective_changed.connect(func(t): _obj_base = t)
 	RunManager.leveled_up.connect(func(lv): announce("LEVEL UP — %d" % lv, Color(0.976, 0.941, 0.008)))
 
-func _panel_style(border: Color) -> StyleBoxFlat:
+func _panel_style(border: Color) -> StyleBox:
 	return WCTheme.panel(border, Color(0.02, 0.02, 0.05, 0.85))
 
 func _build() -> void:
@@ -144,7 +144,7 @@ func _build() -> void:
 	add_child(announce_label)
 	# controls hint bottom-right
 	var hint := Label.new()
-	hint.text = "WASD move (screen) · Mouse aim · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot"
+	hint.text = "WASD move (screen) · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot · F hack"
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.position = Vector2(-660, -30)
 	hint.add_theme_font_size_override("font_size", 13)
@@ -190,15 +190,25 @@ func _process(delta: float) -> void:
 		var p: WCPlayer = dungeon.player
 		heat_bar.value = p.heat
 		heat_bar.modulate = Color(1.0, 0.3, 0.15) if p.overheated else Color.WHITE
-		for i in mini(3, prog_labels.size()):
-			var pid := String(p.programs[i]) if i < p.programs.size() else ""
+		_update_prog_labels(p)
+
+func _update_prog_labels(p: WCPlayer) -> void:
+	## True binding map: SPACE = dash, Q = programs[0], E = programs[1].
+	## (Previously this row was shifted one slot off reality.)
+	var keys := ["SPACE", "Q", "E"]
+	for i in mini(3, prog_labels.size()):
+		var pname := "Blink Dash"
+		var cd := p.dash_cd
+		if i > 0:
+			var idx := i - 1
+			var pid := String(p.programs[idx]) if idx < p.programs.size() else ""
 			var pd: Dictionary = GameDB.PROGRAMS.get(pid, {})
-			var cd: float = float(p.prog_cds.get("slot%d" % (i + 1), 0.0)) if i > 0 else p.dash_cd
-			var key: String = ["SPACE", "Q", "E"][i]
-			if cd > 0.0:
-				(prog_labels[i] as Label).text = "[%s] %s %.1fs" % [key, pd.get("name", "Dash"), cd]
-			else:
-				(prog_labels[i] as Label).text = "[%s] %s ✓" % [key, pd.get("name", "Dash")]
+			pname = String(pd.get("name", "—"))
+			cd = float(p.prog_cds.get("slot%d" % i, 0.0))
+		if cd > 0.0:
+			(prog_labels[i] as Label).text = "[%s] %s %.1fs" % [keys[i], pname, cd]
+		else:
+			(prog_labels[i] as Label).text = "[%s] %s ✓" % [keys[i], pname]
 
 func _build_loot_panel() -> void:
 	loot_panel = PanelContainer.new()

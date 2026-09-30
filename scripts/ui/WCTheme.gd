@@ -5,6 +5,7 @@ extends RefCounted
 ## Fixes: plain default Godot widgets, unreadable low-contrast rows.
 
 static var _cached: Theme = null
+static var _tex_cache := {}
 
 const PINK := Color(1.0, 0.16, 0.43)
 const CYAN := Color(0.02, 0.85, 0.91)
@@ -14,15 +15,102 @@ const PANEL_BG := Color(0.03, 0.035, 0.08, 0.94)
 const TEXT := Color(0.86, 0.89, 1.0)
 const DIM := Color(0.55, 0.6, 0.75)
 
+static func _paint(accent: Color, w: int, h: int, cut: int, glow_px: int, filled: bool) -> ImageTexture:
+	## Bakes one angular panel/button face: cut corners, neon edge + glow,
+	## chrome top sheen, faint circuit traces + node pads.
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var fy := float(h)
+	for y in h:
+		for x in w:
+			# 45-degree cut corners -> transparent
+			var cx: float = minf(float(x), float(w - 1 - x))
+			var cy: float = minf(float(y), float(h - 1 - y))
+			if cx + cy < float(cut):
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+				continue
+			var edge: float = minf(minf(float(x), float(w - 1 - x)), minf(float(y), float(h - 1 - y)))
+			var col := Color(0.028, 0.032, 0.075, 0.96)
+			if filled:
+				col = col.lerp(Color(accent.r * 0.35, accent.g * 0.35, accent.b * 0.35, 0.96), 0.55)
+			# chrome sheen from the top edge
+			var sheen: float = clampf(1.0 - float(y) / (fy * 0.22), 0.0, 1.0) * 0.10
+			col.r += sheen
+			col.g += sheen
+			col.b += sheen
+			# circuit traces: two horizontal + one vertical bus + pads
+			var tr := 0.0
+			var ly1 := fy * 0.30
+			var ly2 := fy * 0.72
+			var lx1 := float(w) * 0.62
+			if absf(float(y) - ly1) < 1.0 or absf(float(y) - ly2) < 1.0 or absf(float(x) - lx1) < 1.0:
+				tr = 0.5
+			var pad := 0.0
+			for p in [Vector2(lx1, ly1), Vector2(lx1, ly2), Vector2(float(w) * 0.2, ly2)]:
+				if Vector2(float(x), float(y)).distance_to(p) < 2.6:
+					pad = 1.0
+			col.r += accent.r * (tr * 0.10 + pad * 0.35)
+			col.g += accent.g * (tr * 0.10 + pad * 0.35)
+			col.b += accent.b * (tr * 0.10 + pad * 0.35)
+			# neon edge + outer glow falloff
+			if edge < 2.5:
+				col = Color(accent.r, accent.g, accent.b, 1.0)
+			elif edge < 2.5 + float(glow_px):
+				var g: float = 1.0 - (edge - 2.5) / float(glow_px)
+				col.r += accent.r * g * 0.45
+				col.g += accent.g * g * 0.45
+				col.b += accent.b * g * 0.45
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+static func _tex(accent: Color, kind: String, state: String) -> StyleBoxTexture:
+	var key := "%s_%s_%s" % [accent.to_html(false), kind, state]
+	if _tex_cache.has(key):
+		return _tex_cache[key]
+	var w := 96
+	var h := 96
+	var cut := 12
+	var glow := 5
+	if kind == "btn":
+		w = 64
+		h = 32
+		cut = 7
+		glow = 4
+	var a := accent
+	if state == "hover":
+		a = accent.lightened(0.35)
+	elif state == "pressed":
+		a = PINK.lightened(0.1)
+	elif state == "disabled":
+		a = Color(0.3, 0.3, 0.35)
+	var tex := _paint(a, w, h, cut, glow, state == "pressed" or state == "active")
+	var sb := StyleBoxTexture.new()
+	sb.texture = tex
+	sb.expand_margin_left = cut
+	sb.expand_margin_top = cut
+	sb.expand_margin_right = cut
+	sb.expand_margin_bottom = cut
+	if kind == "btn":
+		sb.content_margin_left = 12
+		sb.content_margin_right = 12
+		sb.content_margin_top = 7
+		sb.content_margin_bottom = 7
+	else:
+		sb.content_margin_left = 14
+		sb.content_margin_right = 14
+		sb.content_margin_top = 10
+		sb.content_margin_bottom = 10
+	_tex_cache[key] = sb
+	return sb
+
 static func make_theme() -> Theme:
 	if _cached != null:
 		return _cached
 	var t := Theme.new()
 	# Buttons (default cyan accent; per-button accents via style_button()).
-	t.set_stylebox("normal", "Button", _btn_box(CYAN.darkened(0.35)))
-	t.set_stylebox("hover", "Button", _btn_box(CYAN))
-	t.set_stylebox("pressed", "Button", _btn_box(PINK))
-	t.set_stylebox("disabled", "Button", _btn_box(Color(0.25, 0.25, 0.3)))
+	t.set_stylebox("normal", "Button", _tex(CYAN.darkened(0.2), "btn", "normal"))
+	t.set_stylebox("hover", "Button", _tex(CYAN, "btn", "hover"))
+	t.set_stylebox("pressed", "Button", _tex(PINK, "btn", "pressed"))
+	t.set_stylebox("disabled", "Button", _tex(Color(0.25, 0.25, 0.3), "btn", "disabled"))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
 	t.set_color("font_color", "Button", TEXT)
 	t.set_color("font_hover_color", "Button", Color.WHITE)
@@ -52,42 +140,16 @@ static func make_theme() -> Theme:
 	_cached = t
 	return t
 
-static func _btn_box(border: Color) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.05, 0.06, 0.12, 0.96)
-	s.border_color = border
-	s.set_border_width_all(1)
-	s.set_corner_radius_all(4)
-	s.content_margin_left = 12
-	s.content_margin_right = 12
-	s.content_margin_top = 7
-	s.content_margin_bottom = 7
-	return s
-
 static func style_button(b: Button, accent: Color, filled := false) -> void:
 	## Per-button accent (primary actions, selections). Filled variant reads
 	## as "active location" and can't be confused with hover (border-only).
-	var n := _btn_box(accent.darkened(0.35))
-	if filled:
-		n.bg_color = Color(accent.r * 0.3, accent.g * 0.3, accent.b * 0.3, 0.96)
-	b.add_theme_stylebox_override("normal", n)
-	b.add_theme_stylebox_override("hover", _btn_box(accent))
-	b.add_theme_stylebox_override("pressed", _btn_box(PINK))
+	b.add_theme_stylebox_override("normal", _tex(accent.darkened(0.2), "btn", "active" if filled else "normal"))
+	b.add_theme_stylebox_override("hover", _tex(accent, "btn", "hover"))
+	b.add_theme_stylebox_override("pressed", _tex(PINK, "btn", "pressed"))
 	b.add_theme_color_override("font_hover_color", Color.WHITE)
 
-static func panel(border: Color, bg := PANEL_BG) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.border_color = border
-	s.set_border_width_all(1)
-	s.set_corner_radius_all(6)
-	s.content_margin_left = 14
-	s.content_margin_right = 14
-	s.content_margin_top = 10
-	s.content_margin_bottom = 10
-	s.shadow_color = Color(border.r, border.g, border.b, 0.25)
-	s.shadow_size = 6
-	return s
+static func panel(border: Color, bg := PANEL_BG) -> StyleBoxTexture:
+	return _tex(border, "panel", "normal")
 
 static func header(text: String, color: Color, size: int) -> Label:
 	var l := Label.new()

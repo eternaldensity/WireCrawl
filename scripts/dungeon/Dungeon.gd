@@ -206,9 +206,25 @@ void fragment() {
 	col += line_col * (line * 0.55 + subline * 0.4);
 	col += line_pink.rgb * major * 0.9;
 	col += line_cyan.rgb * data_tile * (0.5 + 0.5 * sin(TIME * 2.0 + h * 40.0));
+	// circuit traces: sparse axis runs with dash gaps + node pads
+	vec2 big = floor(wpos.xz / 8.0);
+	float seg = step(0.78, hash(big * 0.5 + 3.7));
+	float dashx = step(0.45, fract(wpos.x * 0.125));
+	float dashz = step(0.45, fract(wpos.z * 0.125));
+	float trace_h = smoothstep(0.03, 0.008, abs(fract(wpos.z / 8.0) - 0.5)) * seg * dashx;
+	float trace_v = smoothstep(0.03, 0.008, abs(fract(wpos.x / 8.0) - 0.5)) * seg * dashz;
+	vec2 pad_uv = abs(fract(wpos.xz / 8.0) - 0.5);
+	float pad = smoothstep(0.045, 0.015, length(pad_uv)) * seg;
+	col += line_cyan.rgb * (trace_h + trace_v) * 0.8;
+	col += line_pink.rgb * pad * 1.2;
+	// data pools: soft radial glow fields on hashed blocks
+	vec2 pb = floor(wpos.xz / 24.0);
+	float pool = smoothstep(0.22, 0.05, length(fract(wpos.xz / 24.0) - 0.5)) * step(0.68, hash(pb + 9.1));
+	col += mix(line_cyan.rgb, line_pink.rgb, hash(pb + 4.2)) * pool * 0.35;
 	ALBEDO = col;
 	EMISSION = line_col * (line * 1.6 + subline * 0.5) + line_pink.rgb * major * 2.2
-		+ line_cyan.rgb * data_tile * 2.5;
+		+ line_cyan.rgb * data_tile * 2.5
+		+ line_cyan.rgb * (trace_h + trace_v) * 1.8 + line_pink.rgb * pad * 2.4;
 	ROUGHNESS = 0.35;
 	METALLIC = 0.6;
 }
@@ -326,6 +342,26 @@ func _build_level() -> void:
 						if faced < 0:
 							win.rotation.y = PI
 						walls.add_child(win)
+				# conduit pipe along the run + drops every ~5 cells (varied)
+				if wlrng.randf() < 0.85:
+					var pipe := MeshInstance3D.new()
+					var pm2 := BoxMesh.new()
+					pm2.size = Vector3(length - 0.4, 0.18, 0.18)
+					pipe.mesh = pm2
+					pipe.material_override = wall_mat
+					pipe.position = Vector3(cx, 2.95, cz + (CELL / 2.0 - 0.12) * (1.0 if faced >= 0 else -1.0))
+					walls.add_child(pipe)
+					var drops := clampi(int(length / (CELL * 2.5)), 1, 4)
+					for di in drops:
+						var dcell := x + 1 + int(float(maxi(int(length / CELL) - 2, 1)) * (float(di) + 0.5) / float(drops))
+						var drop := MeshInstance3D.new()
+						var dm := BoxMesh.new()
+						dm.size = Vector3(0.16, 2.9, 0.16)
+						drop.mesh = dm
+						drop.material_override = run_trim
+						drop.position = Vector3(ox + (float(dcell) + 0.5) * CELL, 1.45,
+							cz + (CELL / 2.0 - 0.12) * (1.0 if faced >= 0 else -1.0))
+						walls.add_child(drop)
 				x = x2
 			else:
 				x += 1
@@ -1006,27 +1042,34 @@ func spawn_blast_fx(pos: Vector3, radius: float, color: Color) -> void:
 	tw.chain().tween_callback(m.queue_free)
 
 func spawn_slash_fx(pos: Vector3, dir: Vector3, color: Color) -> void:
-	## Melee crescent: three fanned arcs sweeping across the swing.
+	## True crescent swoosh: shards placed along an arc in front of the
+	## swing (facing convention: forward = (-sin yaw, 0, -cos yaw)),
+	## sweeping forward and blooming outward as they fade.
 	var base_yaw := atan2(-dir.x, -dir.z)
-	for k in [-0.55, 0.0, 0.55]:
+	var count := 7
+	for k in count:
+		var a := base_yaw - 0.75 + 1.5 * float(k) / float(count - 1)
+		var off := Vector3(-sin(a), 0, -cos(a)) * 2.1
 		var m := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(2.6 if k == 0.0 else 1.8, 0.12, 0.5)
+		var core := k >= 2 and k <= 4
+		bm.size = Vector3(0.55 if core else 0.35, 0.12, 0.28)
 		m.mesh = bm
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = color
 		mat.emission_enabled = true
-		mat.emission = color.lightened(0.3) if k == 0.0 else color
-		mat.emission_energy_multiplier = 5.0 if k == 0.0 else 3.0
+		mat.emission = color.lightened(0.35) if core else color
+		mat.emission_energy_multiplier = 5.5 if core else 3.0
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.material_override = mat
 		fx_layer.add_child(m)
-		m.global_position = pos
-		m.rotation.y = base_yaw + k - 0.45
+		m.global_position = pos + off
+		m.rotation.y = a + PI
 		var tw := m.create_tween()
 		tw.set_parallel(true)
-		tw.tween_property(m, "rotation:y", base_yaw + k + 0.45, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(m, "scale", Vector3(1.5, 1, 1), 0.16)
+		tw.tween_property(m, "rotation:y", a + PI + 0.5, 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(m, "position", m.position + off.normalized() * 0.9, 0.18)
+		tw.tween_property(m, "scale", Vector3(1.4, 1, 1), 0.18)
 		tw.tween_property(m, "transparency", 1.0, 0.2)
 		tw.chain().tween_callback(m.queue_free)
 

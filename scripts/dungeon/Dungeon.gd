@@ -1052,7 +1052,8 @@ func float_text(pos: Vector3, text: String, color: Color) -> void:
 	var tw := label.create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(label, "position:y", label.position.y + 1.6, 1.1)
-	tw.tween_property(label, "modulate:a", 0.0, 1.1)
+	# hold readable, then fall off fast (ease-in keeps alpha high longer)
+	tw.tween_property(label, "modulate:a", 0.0, 1.1).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
 	tw.chain().tween_callback(label.queue_free)
 
 func spawn_flash_fx(pos: Vector3, color: Color) -> void:

@@ -2,6 +2,16 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
+## v0.5 — UI/UX pass (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Gameplay | 8.6 | Unchanged systems. |
+| Usability | 8.8 | Tabbed title (Deploy/Chrome/Profile/Settings), loot compare, settings incl. shake toggle, 1080p base fixes truncation. |
+| Layout | 8.6 | Unchanged sectors; title information architecture fixed. |
+| Content | 8.7 | Unchanged. |
+| Visuals | 8.9 | Shared neon theme (glowing buttons/panels/headers), bigger data-rain, 1080p. |
+| **Mean** | **8.72** | Bar cleared. Remaining: rebinding, gamepad. |
+
 ## v0.4 — exploration + presentation pass (this commit)
 | Axis | Score | Notes |
 |---|---|---|

@@ -576,10 +576,12 @@ func _build_vault(rng: RandomNumberGenerator) -> void:
 		guard.make_elite()
 		enemies_alive += 1
 	vault_item = LootFactory.roll_weapon(threat + 1, RunManager.luck + 1.5)
-	for _r in 5:
+	for _r in 6:
 		if String(vault_item.get("rarity", "")) in ["epic", "legendary", "mythic"]:
 			break
 		vault_item = LootFactory.roll_weapon(threat + 1, RunManager.luck + 1.5)
+	if not (String(vault_item.get("rarity", "")) in ["epic", "legendary", "mythic"]):
+		vault_item = LootFactory.roll_weapon(threat + 1, RunManager.luck + 1.5, "", "epic")
 	RunManager.register_loot(vault_item)
 	WCPickup.spawn(self, vault_center + Vector3(0, 0, 0), "loot", 0, vault_item)
 	WCPickup.spawn(self, vault_center + Vector3(1.5, 0, 0), "health", 40)
@@ -608,9 +610,12 @@ func summon_adds(pos: Vector3, count: int) -> void:
 func _process(delta: float) -> void:
 	if player != null and cam != null:
 		var target: Vector3 = player.global_position + Vector3(6.5, 13.5, 9.5)
-		if cam_shake > 0.0:
+		var shake_on := bool(SaveSystem.profile.get("settings", {}).get("screenshake", true))
+		if cam_shake > 0.0 and shake_on:
 			cam_shake -= delta * 3.0
 			target += Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * cam_shake
+		elif not shake_on:
+			cam_shake = 0.0
 		cam.global_position = cam.global_position.lerp(target, 1.0 - pow(0.001, delta))
 	# rain follows player
 	clear_timer += delta

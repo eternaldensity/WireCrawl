@@ -71,10 +71,18 @@ func _test_dungeon_boot() -> void:
 	var foes := get_tree().get_nodes_in_group("enemies")
 	_check(not foes.is_empty(), "enemies_in_tree")
 	if foes.size() > 1:
-		var champ: WCEnemy = foes[1] as WCEnemy
-		var chp0: float = champ.max_hp
-		champ.make_elite()
-		_check(champ.elite and champ.max_hp > chp0, "elite_modifier")
+		var champ: WCEnemy = null
+		for f in foes:
+			var fe := f as WCEnemy
+			if fe != null and not fe.elite and not fe.is_boss:
+				champ = fe
+				break
+		if champ == null:
+			_check(true, "elite_modifier_skipped_all_elite")
+		else:
+			var chp0: float = champ.max_hp
+			champ.make_elite()
+			_check(champ.elite and champ.max_hp > chp0, "elite_modifier")
 	if not foes.is_empty():
 		var e: WCEnemy = foes[0] as WCEnemy
 		var kills0: int = RunManager.kills

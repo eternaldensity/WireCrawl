@@ -35,16 +35,7 @@ func _ready() -> void:
 	RunManager.leveled_up.connect(func(lv): announce("LEVEL UP — %d" % lv, Color(0.976, 0.941, 0.008)))
 
 func _panel_style(border: Color) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.02, 0.02, 0.05, 0.82)
-	s.border_color = border
-	s.set_border_width_all(1)
-	s.set_corner_radius_all(3)
-	s.content_margin_left = 8
-	s.content_margin_right = 8
-	s.content_margin_top = 4
-	s.content_margin_bottom = 4
-	return s
+	return WCTheme.panel(border, Color(0.02, 0.02, 0.05, 0.85))
 
 func _build() -> void:
 	# vignette
@@ -90,9 +81,9 @@ func _build() -> void:
 	vitals.add_child(weapon_label)
 	# top-right minimap + threat
 	minimap = _Minimap.new()
-	minimap.custom_minimum_size = Vector2(190, 190)
+	minimap.custom_minimum_size = Vector2(230, 230)
 	minimap.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	minimap.position = Vector2(-204, 12)
+	minimap.position = Vector2(-244, 12)
 	add_child(minimap)
 	# boss bar top-center
 	boss_box = VBoxContainer.new()
@@ -135,13 +126,16 @@ func _build() -> void:
 	var hint := Label.new()
 	hint.text = "WASD move · Mouse aim · LMB fire · SPACE dash · TAB swap · Q/E programs · 1/2 loot"
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	hint.position = Vector2(-560, -30)
-	hint.add_theme_font_size_override("font_size", 12)
+	hint.position = Vector2(-660, -30)
+	hint.add_theme_font_size_override("font_size", 13)
 	hint.add_theme_color_override("font_color", Color(0.6, 0.65, 0.8))
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint)
 	_build_loot_panel()
 	_refresh_bars()
+	for c in get_children():
+		if c is Control:
+			(c as Control).theme = WCTheme.make_theme()
 
 func _process(delta: float) -> void:
 	if _announce_t > 0.0:

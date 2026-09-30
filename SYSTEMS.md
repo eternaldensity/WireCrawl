@@ -64,12 +64,16 @@ below. Autoloads boot in the order listed in `project.godot`.
 - `WCPickup`: magnet + `player.collect(kind, amount, item)`.
 - `WCAlly`: turret/hound deployables scaling with program power.
 
-## 10. UI (`scripts/ui/HUD.gd`, `scripts/Main.gd`)
+## 10. UI (`scripts/ui/HUD.gd`, `scripts/ui/WCTheme.gd`, `scripts/Main.gd`)
+- `WCTheme`: single neon theme (buttons, sliders, panels, headers, sections).
+  Assigned to every root Control (title shell, HUD roots, pause, debrief).
+- Title shell: nav rail (DEPLOY / CHROME / PROFILE / SETTINGS) + scrollable
+  content; selections re-render the tab only (`_refresh_title`).
 - HUD observes RunManager signals + polls dungeon (boss bar, cooldowns, minimap,
   dual-weapon readout). Loot choice panel (`[1]`/`[2]`/click, 14s timeout)
   calls `WCPlayer.equip_item`.
-- Main owns screen flow + runtime InputMap bootstrap + pause + debrief +
-  title audio sliders (persisted to SaveSystem settings).
+
+- Main owns screen flow + runtime InputMap bootstrap + pause + debrief.
 
 ## 11. Rust core (`rust_ext/`, optional)
 - Mirrors §§1,5–7 hot paths (`generate_dungeon`, `roll_rarity`, `xp_for_level`,

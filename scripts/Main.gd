@@ -85,10 +85,15 @@ func _clear() -> void:
 	paused = false
 
 # ================= TITLE =================
+var tab := "deploy"
+var rail_box: VBoxContainer
+var tab_content: VBoxContainer
+
 func show_title() -> void:
 	_clear()
 	screen = Control.new()
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.theme = WCTheme.make_theme()
 	add_child(screen)
 	var bg := ColorRect.new()
 	bg.color = BG
@@ -97,89 +102,177 @@ func show_title() -> void:
 	_data_rain(bg)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 36)
-	margin.add_theme_constant_override("margin_right", 36)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
+	margin.add_theme_constant_override("margin_left", 32)
+	margin.add_theme_constant_override("margin_right", 32)
+	margin.add_theme_constant_override("margin_top", 18)
+	margin.add_theme_constant_override("margin_bottom", 18)
 	screen.add_child(margin)
-	var root := HBoxContainer.new()
-	root.add_theme_constant_override("separation", 28)
-	margin.add_child(root)
-	var left := VBoxContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.add_theme_constant_override("separation", 10)
-	root.add_child(left)
-	var title := Label.new()
-	title.text = "WIRECRAWL"
-	title.add_theme_font_size_override("font_size", 72)
-	title.add_theme_color_override("font_color", NEON_PINK)
-	left.add_child(title)
-	var sub := Label.new()
-	sub.text = "NEON ABYSS — a cyberpunk dungeon-crawler"
-	sub.add_theme_font_size_override("font_size", 18)
-	sub.add_theme_color_override("font_color", NEON_CYAN)
-	left.add_child(sub)
-	left.add_child(_label("— CHOOSE YOUR RIG —", NEON_YELLOW, 16))
+	var shell := VBoxContainer.new()
+	shell.add_theme_constant_override("separation", 12)
+	margin.add_child(shell)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 16)
+	shell.add_child(head)
+	head.add_child(WCTheme.header("WIRECRAWL", NEON_PINK, 46))
+	var sub := WCTheme.body("NEON ABYSS — a cyberpunk dungeon-crawler", 17, NEON_CYAN)
+	sub.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(sub)
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 20)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shell.add_child(body)
+	rail_box = VBoxContainer.new()
+	rail_box.custom_minimum_size = Vector2(250, 0)
+	rail_box.add_theme_constant_override("separation", 8)
+	body.add_child(rail_box)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(scroll)
+	tab_content = VBoxContainer.new()
+	tab_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_content.add_theme_constant_override("separation", 12)
+	scroll.add_child(tab_content)
+	_refresh_title()
+
+func _refresh_title() -> void:
+	if screen == null:
+		return
+	_render_rail()
+	_render_tab()
+
+func _render_rail() -> void:
+	for c in rail_box.get_children():
+		c.queue_free()
+	var tabs := [["deploy", "▸ DEPLOY", NEON_PINK], ["chrome", "▸ CHROME", NEON_YELLOW],
+		["profile", "▸ PROFILE", NEON_CYAN], ["settings", "▸ SETTINGS", Color(0.6, 0.65, 0.9)]]
+	for t in tabs:
+		var b := Button.new()
+		b.text = String(t[1]) if tab != String(t[0]) else "▶ " + String(t[1]).substr(2)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if tab == String(t[0]):
+			WCTheme.style_button(b, t[2])
+			b.disabled = true
+		var id := String(t[0])
+		b.pressed.connect(func():
+			tab = id
+			AudioDirector.play("ui")
+			_refresh_title())
+		rail_box.add_child(b)
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rail_box.add_child(spacer)
+	var cred := PanelContainer.new()
+	cred.add_theme_stylebox_override("panel", WCTheme.panel(NEON_YELLOW))
+	rail_box.add_child(cred)
+	var cv := VBoxContainer.new()
+	cred.add_child(cv)
+	cv.add_child(WCTheme.body("CREDITS", 12, NEON_YELLOW))
+	cv.add_child(WCTheme.header("%d cr" % int(SaveSystem.profile.get("credits", 0)), NEON_YELLOW, 24))
+	rail_box.add_child(WCTheme.body("v%s · Godot 4.7" % GameDB.VERSION, 11, WCTheme.DIM))
+
+func _render_tab() -> void:
+	for c in tab_content.get_children():
+		c.queue_free()
+	match tab:
+		"deploy":
+			_tab_deploy()
+		"chrome":
+			_tab_chrome()
+		"profile":
+			_tab_profile()
+		"settings":
+			_tab_settings()
+
+func _tab_deploy() -> void:
+	tab_content.add_child(WCTheme.section("CHOOSE YOUR RIG", NEON_YELLOW))
 	var orig_row := HBoxContainer.new()
 	orig_row.add_theme_constant_override("separation", 10)
-	left.add_child(orig_row)
+	tab_content.add_child(orig_row)
 	for oid in ["solo", "netrunner", "techie"]:
 		orig_row.add_child(_origin_card(oid))
-	left.add_child(_label("— CONTRACT (threat scales loot + danger) —", NEON_YELLOW, 16))
+	tab_content.add_child(WCTheme.section("CONTRACT — threat scales loot + danger", NEON_YELLOW))
 	var unlocked: int = int(SaveSystem.profile.get("contracts_unlocked", 1))
 	for i in GameDB.CONTRACTS.size():
 		var c: Dictionary = GameDB.CONTRACTS[i]
-		left.add_child(_contract_row(i, c, i < unlocked))
-	left.add_child(_label("— PROGRAMS (Q / E slots) —", NEON_YELLOW, 16))
+		tab_content.add_child(_contract_row(i, c, i < unlocked))
+	tab_content.add_child(WCTheme.section("PROGRAMS — Q / E slots", NEON_YELLOW))
 	var prog_row := HBoxContainer.new()
 	prog_row.add_theme_constant_override("separation", 8)
-	left.add_child(prog_row)
+	tab_content.add_child(prog_row)
 	prog_row.add_child(_program_picker(1))
 	prog_row.add_child(_program_picker(2))
-	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(330, 0)
-	right.add_theme_constant_override("separation", 10)
-	root.add_child(right)
-	right.add_child(_label("— PROFILE —", NEON_CYAN, 16))
-	right.add_child(_profile_panel())
-	right.add_child(_label("— CYBERWARE (persistent) —", NEON_CYAN, 16))
-	for track in ["muscle", "ice", "ghost"]:
-		right.add_child(_cyberware_row(track))
-	right.add_child(_label("— AUDIO —", NEON_CYAN, 14))
-	right.add_child(_volume_row("master_vol", "Master"))
-	right.add_child(_volume_row("music_vol", "Music"))
-	right.add_child(_volume_row("sfx_vol", "SFX"))
+	var bar := PanelContainer.new()
+	bar.add_theme_stylebox_override("panel", WCTheme.panel(NEON_PINK))
+	tab_content.add_child(bar)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	bar.add_child(h)
+	var c0: Dictionary = GameDB.CONTRACTS[clampi(sel_contract, 0, 5)]
+	var summary := WCTheme.body("Run: %s · %s · Threat %d · %s / %s" % [
+		GameDB.ORIGINS[sel_origin]["name"], c0["name"], c0["threat"],
+		GameDB.PROGRAMS[sel_prog1]["name"], GameDB.PROGRAMS[sel_prog2]["name"]], 15)
+	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(summary)
 	var launch := Button.new()
 	launch.text = "▶ JACK IN"
-	launch.custom_minimum_size = Vector2(0, 56)
-	launch.add_theme_font_size_override("font_size", 24)
-	right.add_child(launch)
+	launch.custom_minimum_size = Vector2(280, 60)
+	launch.add_theme_font_size_override("font_size", 26)
+	WCTheme.style_button(launch, NEON_PINK)
+	h.add_child(launch)
 	launch.pressed.connect(func():
 		AudioDirector.play("ui")
 		start_dungeon())
-	var hint := _label("WASD move · mouse aim · LMB fire · SPACE dash · TAB/wheel swap · Q/E programs · ESC pause", Color(0.55, 0.6, 0.75), 12)
-	right.add_child(hint)
+
+func _tab_chrome() -> void:
+	tab_content.add_child(WCTheme.section("CYBERWARE — permanent rig upgrades", NEON_YELLOW))
+	tab_content.add_child(WCTheme.body("Installed chrome persists across runs. Earn credits by completing contracts.", 13, WCTheme.DIM))
+	for track in ["muscle", "ice", "ghost"]:
+		tab_content.add_child(_cyberware_row(track))
+
+func _tab_profile() -> void:
+	tab_content.add_child(WCTheme.section("PROFILE", NEON_CYAN))
+	tab_content.add_child(_profile_panel())
+	tab_content.add_child(WCTheme.section("RIG MASTERY", NEON_CYAN))
+	for oid in ["solo", "netrunner", "techie"]:
+		var o: Dictionary = GameDB.ORIGINS[oid]
+		var p := PanelContainer.new()
+		p.add_theme_stylebox_override("panel", WCTheme.panel(o["color"]))
+		tab_content.add_child(p)
+		var v := VBoxContainer.new()
+		p.add_child(v)
+		v.add_child(WCTheme.header("%s — Level %d" % [o["name"], SaveSystem.origin_level(oid)], o["color"], 18))
+		var xp: int = int(SaveSystem.profile["origins"][oid].get("xp", 0))
+		var need: int = GameDB.xp_for_level(SaveSystem.origin_level(oid))
+		v.add_child(WCTheme.body("XP %d / %d to next level" % [xp, need], 12, WCTheme.DIM))
+
+func _tab_settings() -> void:
+	tab_content.add_child(WCTheme.section("AUDIO", NEON_CYAN))
+	tab_content.add_child(_volume_row("master_vol", "Master"))
+	tab_content.add_child(_volume_row("music_vol", "Music"))
+	tab_content.add_child(_volume_row("sfx_vol", "SFX"))
+	tab_content.add_child(WCTheme.section("GAMEPLAY", NEON_CYAN))
+	var shake := CheckButton.new()
+	shake.text = "Screen shake"
+	shake.button_pressed = bool(SaveSystem.profile.get("settings", {}).get("screenshake", true))
+	shake.add_theme_font_size_override("font_size", 14)
+	tab_content.add_child(shake)
+	shake.toggled.connect(func(on: bool):
+		SaveSystem.profile["settings"]["screenshake"] = on
+		SaveSystem.save_profile())
+	tab_content.add_child(WCTheme.section("CONTROLS", NEON_CYAN))
+	tab_content.add_child(WCTheme.body("WASD move · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · ESC pause", 13))
+	tab_content.add_child(WCTheme.section("DISPLAY", NEON_CYAN))
+	tab_content.add_child(WCTheme.body("The game renders at your window size — maximize or fullscreen the window for higher fidelity. UI scales automatically (1080p base).", 13, WCTheme.DIM))
 
 func _label(t: String, c: Color, fs: int) -> Label:
-	var l := Label.new()
-	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
-	l.add_theme_color_override("font_color", c)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return l
+	return WCTheme.body(t, fs, c)
 
 func _panel(border: Color) -> PanelContainer:
 	var p := PanelContainer.new()
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.03, 0.03, 0.07, 0.95)
-	s.border_color = border
-	s.set_border_width_all(1)
-	s.set_corner_radius_all(4)
-	s.content_margin_left = 10
-	s.content_margin_right = 10
-	s.content_margin_top = 8
-	s.content_margin_bottom = 8
-	p.add_theme_stylebox_override("panel", s)
+	p.add_theme_stylebox_override("panel", WCTheme.panel(border))
 	return p
 
 func _origin_card(oid: String) -> Control:
@@ -194,11 +287,13 @@ func _origin_card(oid: String) -> Control:
 	v.add_child(d)
 	var b := Button.new()
 	b.text = "SELECT" if sel_origin != oid else "✓ ACTIVE"
+	if sel_origin == oid:
+		WCTheme.style_button(b, o["color"])
 	v.add_child(b)
 	b.pressed.connect(func():
 		sel_origin = oid
 		AudioDirector.play("ui")
-		show_title())
+		_refresh_title())
 	return p
 
 func _contract_row(i: int, c: Dictionary, open: bool) -> Control:
@@ -217,7 +312,7 @@ func _contract_row(i: int, c: Dictionary, open: bool) -> Control:
 		b.pressed.connect(func():
 			sel_contract = i
 			AudioDirector.play("ui")
-			show_title())
+			_refresh_title())
 	return p
 
 func _program_picker(slot: int) -> Control:
@@ -242,7 +337,7 @@ func _program_picker(slot: int) -> Control:
 		else:
 			sel_prog2 = ids[idx]
 		AudioDirector.play("ui")
-		show_title())
+		_refresh_title())
 	return p
 
 func _profile_panel() -> Control:
@@ -275,7 +370,7 @@ func _cyberware_row(track: String) -> Control:
 				AudioDirector.play("levelup")
 			else:
 				AudioDirector.play("hurt", 0.8)
-			show_title())
+			_refresh_title())
 	else:
 		v.add_child(_label("MAXED", NEON_YELLOW, 11))
 	return p
@@ -303,15 +398,15 @@ func _data_rain(parent: Control) -> void:
 	_rain_lines(parent)
 	var glyphs := ["01", "死", "電", "脳", ">><<", "##", "07", "夢", "AX", "99", "λ", "街"]
 	var cols := [NEON_CYAN, NEON_PINK, NEON_YELLOW, Color(0.5, 1.0, 0.6)]
-	for i in 26:
+	for i in 30:
 		var l := Label.new()
 		var col: Color = cols[i % cols.size()]
-		l.add_theme_font_size_override("font_size", 13)
+		l.add_theme_font_size_override("font_size", 15)
 		l.add_theme_color_override("font_color", col)
 		l.modulate.a = randf_range(0.15, 0.5)
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var x := randf_range(0.0, 1240.0)
-		l.position = Vector2(x, randf_range(-700.0, 0.0))
+		var x := randf_range(0.0, 1880.0)
+		l.position = Vector2(x, randf_range(-900.0, 0.0))
 		parent.add_child(l)
 		_fall_loop(l, glyphs)
 
@@ -322,9 +417,9 @@ func _fall_loop(l: Label, glyphs: Array) -> void:
 	for _i in randi_range(4, 10):
 		lines.append(glyphs[randi() % glyphs.size()])
 	l.text = "\n".join(lines)
-	l.position.y = -260.0
+	l.position.y = -320.0
 	var tw := l.create_tween()
-	tw.tween_property(l, "position:y", 760.0, randf_range(5.0, 11.0))
+	tw.tween_property(l, "position:y", 1120.0, randf_range(5.0, 11.0))
 	tw.tween_callback(func(): _fall_loop(l, glyphs))
 
 func _rain_lines(parent: Control) -> void:
@@ -382,6 +477,7 @@ func toggle_pause() -> void:
 	if paused:
 		var dim := ColorRect.new()
 		dim.name = "PauseDim"
+		dim.theme = WCTheme.make_theme()
 		dim.color = Color(0, 0, 0, 0.7)
 		dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 		hud.add_child(dim)
@@ -427,6 +523,7 @@ func _show_debrief(victory: bool, summary: Dictionary) -> void:
 		hud = null
 	screen = Control.new()
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.theme = WCTheme.make_theme()
 	add_child(screen)
 	var bg := ColorRect.new()
 	bg.color = Color(0.01, 0.01, 0.03, 0.92)

@@ -277,7 +277,14 @@ func _tab_settings() -> void:
 	tab_content.add_child(WCTheme.section("CONTROLS", NEON_CYAN))
 	tab_content.add_child(WCTheme.body("WASD move · mouse aim · LMB fire · SPACE dash (i-frames) · TAB / wheel weapon swap · Q / E programs · 1 / 2 loot choice · ESC pause", 13))
 	tab_content.add_child(WCTheme.section("DISPLAY", NEON_CYAN))
-	tab_content.add_child(WCTheme.body("The game renders at your window size — maximize or fullscreen the window for higher fidelity. UI scales automatically (1080p base).", 13, WCTheme.DIM))
+	var fs := CheckButton.new()
+	fs.text = "Fullscreen (fixes editor-embed mouse offset; restart applies cleanly)"
+	fs.button_pressed = DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED
+	fs.add_theme_font_size_override("font_size", 14)
+	tab_content.add_child(fs)
+	fs.toggled.connect(func(on: bool):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if on else DisplayServer.WINDOW_MODE_WINDOWED))
+	tab_content.add_child(WCTheme.body("The game renders at your window size — UI scales automatically (1080p base).", 13, WCTheme.DIM))
 	var win := DisplayServer.window_get_size()
 	var view := get_viewport().get_visible_rect().size
 	var ct := get_viewport().get_canvas_transform()

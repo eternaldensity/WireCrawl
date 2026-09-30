@@ -2,7 +2,13 @@
 
 Scale: 10 = genre reference. Re-score after each verified work unit.
 
-## v0.5.5 — borderless window vs stale chrome offset (this commit)
+## v0.5.6 — editor-embed offset fix (this commit)
+| Axis | Score | Notes |
+|---|---|---|
+| Usability | 8.8 | Window Mode → Fullscreen (forum-confirmed fix for debugger-embed mouse offset at 1920×1080) + Settings fullscreen toggle. |
+| **Mean** | **8.72** | Unchanged. |
+
+## v0.5.5 — borderless window vs stale chrome offset
 | Axis | Score | Notes |
 |---|---|---|
 | Usability | 8.8 | Borderless window removes title-bar decoration math entirely (fixed ~40px input offset from stale client-rect on focus/display changes). |
